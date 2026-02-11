@@ -39,6 +39,19 @@ def audit_snapshot_schedule_job():
         print(f'Scheduled audit snapshot error: {str(e)}')
 
 
+def google_admin_sync_schedule_job():
+    """Background job to evaluate and run scheduled Google Admin sync."""
+    try:
+        from app import app
+        from google_admin_sync import run_google_admin_sync_if_due
+        with app.app_context():
+            success, message = run_google_admin_sync_if_due()
+            if success:
+                print(f'Scheduled Google Admin sync: {message}')
+    except Exception as e:
+        print(f'Scheduled Google Admin sync error: {str(e)}')
+
+
 def init_scheduler(app):
     """Initialize the background scheduler."""
     if app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
@@ -61,6 +74,14 @@ def init_scheduler(app):
             trigger=IntervalTrigger(minutes=Config.SNAPSHOT_SCHEDULER_INTERVAL_MINUTES),
             id='audit_snapshot_schedule',
             name='Scheduled Audit Snapshot',
+            replace_existing=True
+        )
+
+        scheduler.add_job(
+            func=google_admin_sync_schedule_job,
+            trigger=IntervalTrigger(minutes=Config.GOOGLE_ADMIN_SYNC_SCHEDULER_INTERVAL_MINUTES),
+            id='google_admin_sync_schedule',
+            name='Scheduled Google Admin Sync',
             replace_existing=True
         )
 

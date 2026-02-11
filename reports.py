@@ -17,6 +17,9 @@ from models import (
     DamageIncident,
     EscalationCase,
     AuditSnapshotLog,
+    OverdueAuditSweep,
+    OverdueAuditSweepItem,
+    OverdueAuditSweepScanLog,
     REPAIR_STATUS_LABELS,
 )
 from audit_snapshot import (
@@ -274,6 +277,28 @@ def index():
     escalation_cases = EscalationCase.query.order_by(EscalationCase.updated_at.desc()).limit(50).all()
     snapshot_logs = AuditSnapshotLog.query.order_by(AuditSnapshotLog.generated_at.desc()).limit(20).all()
     snapshot_schedule = get_or_create_snapshot_schedule()
+    selected_sweep_id = request.args.get('sweep_id', type=int)
+    if selected_sweep_id:
+        selected_sweep = OverdueAuditSweep.query.get(selected_sweep_id)
+    else:
+        selected_sweep = OverdueAuditSweep.query.filter_by(status='open').order_by(OverdueAuditSweep.generated_at.desc()).first()
+        if not selected_sweep:
+            selected_sweep = OverdueAuditSweep.query.order_by(OverdueAuditSweep.generated_at.desc()).first()
+
+    selected_sweep_items = []
+    selected_sweep_logs = []
+    pending_count = 0
+    verified_count = 0
+    if selected_sweep:
+        selected_sweep_items = selected_sweep.items.order_by(
+            OverdueAuditSweepItem.status.asc(),
+            OverdueAuditSweepItem.expected_return_date.asc()
+        ).all()
+        selected_sweep_logs = selected_sweep.scan_logs.order_by(OverdueAuditSweepScanLog.scanned_at.desc()).limit(30).all()
+        pending_count = selected_sweep.items.filter_by(status='pending').count()
+        verified_count = selected_sweep.items.filter_by(status='verified').count()
+
+    recent_sweeps = OverdueAuditSweep.query.order_by(OverdueAuditSweep.generated_at.desc()).limit(20).all()
     return render_template(
         'reports/index.html',
         premade_reports=PREMADE_REPORTS,
@@ -284,6 +309,12 @@ def index():
         escalation_statuses=ESCALATION_STATUSES,
         snapshot_logs=snapshot_logs,
         snapshot_schedule=snapshot_schedule,
+        selected_sweep=selected_sweep,
+        selected_sweep_items=selected_sweep_items,
+        selected_sweep_logs=selected_sweep_logs,
+        recent_sweeps=recent_sweeps,
+        sweep_pending_count=pending_count,
+        sweep_verified_count=verified_count,
     )
 
 
@@ -452,6 +483,154 @@ def update_audit_snapshot_schedule():
 
     flash('Audit snapshot schedule saved.', 'success')
     return redirect(url_for('reports.index'))
+
+
+@reports_bp.route('/overdue-sweep/generate', methods=['POST'])
+@login_required
+@roles_required('admin', 'helpdesk', 'staff')
+def generate_overdue_sweep():
+    period_type = request.form.get('period_type', 'monthly').strip().lower()
+    if period_type not in {'monthly', 'quarterly'}:
+        flash('Invalid period type.', 'danger')
+        return redirect(url_for('reports.index'))
+
+    now = datetime.utcnow()
+    if period_type == 'monthly':
+        period_label = now.strftime('%Y-%m')
+    else:
+        quarter = ((now.month - 1) // 3) + 1
+        period_label = f'{now.year}-Q{quarter}'
+
+    sweep = OverdueAuditSweep(
+        period_type=period_type,
+        period_label=period_label,
+        status='open',
+        generated_by=current_user.id
+    )
+    db.session.add(sweep)
+    db.session.flush()
+
+    overdue_rows = db.session.query(
+        Checkout,
+        Asset
+    ).join(Asset, Checkout.asset_id == Asset.id).filter(
+        Checkout.checked_in_date.is_(None),
+        Checkout.expected_return_date.isnot(None),
+        Checkout.expected_return_date < datetime.utcnow().date()
+    ).order_by(Checkout.expected_return_date.asc()).all()
+
+    for checkout, asset in overdue_rows:
+        item = OverdueAuditSweepItem(
+            sweep_id=sweep.id,
+            asset_id=asset.id,
+            checkout_id=checkout.id,
+            asset_tag=asset.asset_tag,
+            asset_name=asset.name,
+            checked_out_to=checkout.checked_out_to,
+            expected_return_date=checkout.expected_return_date,
+            status='pending'
+        )
+        db.session.add(item)
+
+    db.session.commit()
+    flash(f'Overdue audit sweep created with {len(overdue_rows)} item(s).', 'success')
+    return redirect(url_for('reports.index', sweep_id=sweep.id))
+
+
+@reports_bp.route('/overdue-sweep/<int:sweep_id>/scan', methods=['POST'])
+@login_required
+@roles_required('admin', 'helpdesk', 'staff')
+def scan_overdue_sweep_item(sweep_id):
+    scanned_input = request.form.get('scanned_input', '').strip()
+    sweep = OverdueAuditSweep.query.get_or_404(sweep_id)
+    if not scanned_input:
+        flash('Enter an asset tag to scan.', 'warning')
+        return redirect(url_for('reports.index', sweep_id=sweep.id))
+
+    item = sweep.items.filter(
+        db.func.lower(OverdueAuditSweepItem.asset_tag) == scanned_input.lower(),
+        OverdueAuditSweepItem.status == 'pending'
+    ).first()
+
+    if item:
+        item.status = 'verified'
+        item.scanned_at = datetime.utcnow()
+        item.scanned_by = current_user.id
+        log = OverdueAuditSweepScanLog(
+            sweep_id=sweep.id,
+            item_id=item.id,
+            scanned_input=scanned_input,
+            matched=True,
+            message=f'Verified {item.asset_tag}.',
+            scanned_by=current_user.id
+        )
+        db.session.add(log)
+
+        remaining = sweep.items.filter_by(status='pending').count() - 1
+        if remaining <= 0:
+            sweep.status = 'completed'
+            sweep.completed_at = datetime.utcnow()
+        db.session.commit()
+        flash(f'Asset {item.asset_tag} verified.', 'success')
+    else:
+        log = OverdueAuditSweepScanLog(
+            sweep_id=sweep.id,
+            item_id=None,
+            scanned_input=scanned_input,
+            matched=False,
+            message='No pending overdue item matched this scan.',
+            scanned_by=current_user.id
+        )
+        db.session.add(log)
+        db.session.commit()
+        flash('No pending overdue item matched that scan.', 'warning')
+
+    return redirect(url_for('reports.index', sweep_id=sweep.id))
+
+
+@reports_bp.route('/overdue-sweep/<int:sweep_id>/list.csv')
+@login_required
+@roles_required('admin', 'helpdesk', 'staff')
+def download_overdue_sweep_csv(sweep_id):
+    sweep = OverdueAuditSweep.query.get_or_404(sweep_id)
+    rows = sweep.items.order_by(OverdueAuditSweepItem.status.asc(), OverdueAuditSweepItem.asset_tag.asc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        'sweep_id',
+        'period_type',
+        'period_label',
+        'asset_tag',
+        'asset_name',
+        'checked_out_to',
+        'expected_return_date',
+        'status',
+        'scanned_at',
+        'scanned_by'
+    ])
+    for item in rows:
+        writer.writerow([
+            sweep.id,
+            sweep.period_type,
+            sweep.period_label,
+            item.asset_tag,
+            item.asset_name,
+            item.checked_out_to,
+            item.expected_return_date.strftime('%Y-%m-%d') if item.expected_return_date else '',
+            item.status,
+            item.scanned_at.strftime('%Y-%m-%d %H:%M:%S') if item.scanned_at else '',
+            item.scanner.name if item.scanner else ''
+        ])
+
+    output.seek(0)
+    filename = f'overdue_audit_sweep_{sweep.id}_{sweep.period_label}.csv'
+    return send_file(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name=filename
+    )
 
 
 @reports_bp.route('/generate', methods=['POST'])

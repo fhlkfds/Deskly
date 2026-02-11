@@ -8,6 +8,7 @@ from checkouts import checkouts_bp
 from settings import settings_bp
 from users import users_bp
 from reports import reports_bp
+from docs import docs_bp
 from scheduler import init_scheduler
 from datetime import datetime, timedelta
 import os
@@ -28,6 +29,7 @@ app.register_blueprint(checkouts_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(reports_bp)
+app.register_blueprint(docs_bp)
 
 # Initialize scheduler (commented out by default - uncomment when Google Sheets is configured)
 init_scheduler(app)

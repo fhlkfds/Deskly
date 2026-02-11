@@ -112,6 +112,284 @@
     </div>
 </div>
 
+<!-- Google Admin User Sync -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Google Admin User Sync</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <strong>Credentials File:</strong><br>
+                <code>{{ google_admin_credentials_file }}</code>
+            </div>
+            <div class="col-md-4">
+                <strong>Delegated Admin:</strong><br>
+                {% if google_admin_delegated_admin_email %}
+                <code>{{ google_admin_delegated_admin_email }}</code>
+                {% else %}
+                <span class="text-danger">Not configured</span>
+                {% endif %}
+            </div>
+            <div class="col-md-4">
+                <strong>Customer ID:</strong><br>
+                <code>{{ google_admin_customer_id }}</code>
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-md-3">
+                <button id="test-google-admin-btn" class="btn btn-outline-primary w-100">
+                    <i class="bi bi-plug"></i> Test Google Admin
+                </button>
+            </div>
+            <div class="col-md-3">
+                <form method="POST" action="{{ url_for('settings.manual_google_admin_sync') }}">
+                    <div class="form-check text-start mb-2">
+                        <input class="form-check-input" type="checkbox" id="sync_device_ou" name="sync_device_ou">
+                        <label class="form-check-label small" for="sync_device_ou">Include Device OU sync</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-arrow-repeat"></i> Run Manual Sync
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <h6>OU to Role Mapping</h6>
+        <form method="POST" action="{{ url_for('settings.add_google_admin_ou_mapping') }}" class="row g-2 align-items-end mb-3">
+            <div class="col-md-5">
+                <label for="ou_path" class="form-label">Google OU Path</label>
+                <input type="text" class="form-control" id="ou_path" name="ou_path" placeholder="/Students/Grade-9" required>
+            </div>
+            <div class="col-md-3">
+                <label for="role" class="form-label">Local Role</label>
+                <select class="form-select" id="role" name="role" required>
+                    <option value="admin">Admin</option>
+                    <option value="helpdesk">Help Desk</option>
+                    <option value="staff">Staff</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="student">Student</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="enabled" name="enabled" checked>
+                    <label class="form-check-label" for="enabled">Enabled</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-success w-100">Save Mapping</button>
+            </div>
+        </form>
+
+        {% if google_admin_ou_mappings %}
+        <div class="table-responsive mb-4">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>OU Path</th>
+                        <th>Role</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mapping in google_admin_ou_mappings %}
+                    <tr>
+                        <td><code>{{ mapping.ou_path }}</code></td>
+                        <td>{{ mapping.role|title }}</td>
+                        <td>
+                            {% if mapping.enabled %}
+                            <span class="badge bg-success">Yes</span>
+                            {% else %}
+                            <span class="badge bg-secondary">No</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('settings.delete_google_admin_ou_mapping', mapping_id=mapping.id) }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No Google OU mappings yet.</p>
+        {% endif %}
+
+        <hr>
+        <h6>Device Model to Device Group Mapping</h6>
+        <form method="POST" action="{{ url_for('settings.add_google_admin_device_model_mapping') }}" class="row g-2 align-items-end mb-3">
+            <div class="col-md-5">
+                <label for="device_model" class="form-label">Google Device Model</label>
+                <input type="text" class="form-control" id="device_model" name="device_model" placeholder="Chromebook 3110" required>
+            </div>
+            <div class="col-md-3">
+                <label for="device_group" class="form-label">Device Group</label>
+                <select class="form-select" id="device_group" name="device_group" required>
+                    <option value="admin">Admin</option>
+                    <option value="helpdesk">Help Desk</option>
+                    <option value="staff">Staff</option>
+                    <option value="teacher">Teacher</option>
+                    <option value="student">Student</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="enabled_device_model" name="enabled" checked>
+                    <label class="form-check-label" for="enabled_device_model">Enabled</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-success w-100">Save Mapping</button>
+            </div>
+        </form>
+
+        {% if google_admin_device_model_mappings %}
+        <div class="table-responsive mb-4">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Device Model</th>
+                        <th>Device Group</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mapping in google_admin_device_model_mappings %}
+                    <tr>
+                        <td><code>{{ mapping.device_model }}</code></td>
+                        <td>{{ mapping.device_group|title }}</td>
+                        <td>
+                            {% if mapping.enabled %}
+                            <span class="badge bg-success">Yes</span>
+                            {% else %}
+                            <span class="badge bg-secondary">No</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST" action="{{ url_for('settings.delete_google_admin_device_model_mapping', mapping_id=mapping.id) }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No Google device model mappings yet.</p>
+        {% endif %}
+
+        <h6>Schedule Google Admin Sync (One or Multiple Days)</h6>
+        {% set selected_days = (google_admin_schedule.days_of_week or '').split(',') %}
+        <form method="POST" action="{{ url_for('settings.save_google_admin_schedule') }}" class="row g-3">
+            <div class="col-md-12">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="ga_schedule_enabled" name="ga_schedule_enabled"
+                           {% if google_admin_schedule.enabled %}checked{% endif %}>
+                    <label class="form-check-label" for="ga_schedule_enabled">Enable schedule</label>
+                </div>
+            </div>
+            <div class="col-md-12">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="ga_sync_device_ou" name="ga_sync_device_ou"
+                           {% if google_admin_schedule.sync_device_ou %}checked{% endif %}>
+                    <label class="form-check-label" for="ga_sync_device_ou">Also sync Device OU to local assets</label>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label d-block">Days of Week (UTC)</label>
+                <div class="d-flex flex-wrap gap-3">
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ga_days" value="0" id="ga_day_0" {% if '0' in selected_days %}checked{% endif %}><label class="form-check-label" for="ga_day_0">Mon</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ga_days" value="1" id="ga_day_1" {% if '1' in selected_days %}checked{% endif %}><label class="form-check-label" for="ga_day_1">Tue</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ga_days" value="2" id="ga_day_2" {% if '2' in selected_days %}checked{% endif %}><label class="form-check-label" for="ga_day_2">Wed</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ga_days" value="3" id="ga_day_3" {% if '3' in selected_days %}checked{% endif %}><label class="form-check-label" for="ga_day_3">Thu</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ga_days" value="4" id="ga_day_4" {% if '4' in selected_days %}checked{% endif %}><label class="form-check-label" for="ga_day_4">Fri</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ga_days" value="5" id="ga_day_5" {% if '5' in selected_days %}checked{% endif %}><label class="form-check-label" for="ga_day_5">Sat</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" name="ga_days" value="6" id="ga_day_6" {% if '6' in selected_days %}checked{% endif %}><label class="form-check-label" for="ga_day_6">Sun</label></div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label for="ga_hour_utc" class="form-label">Hour (UTC)</label>
+                <input type="number" class="form-control" id="ga_hour_utc" name="ga_hour_utc" min="0" max="23"
+                       value="{{ google_admin_schedule.hour_utc }}">
+            </div>
+            <div class="col-md-2">
+                <label for="ga_minute_utc" class="form-label">Minute (UTC)</label>
+                <input type="number" class="form-control" id="ga_minute_utc" name="ga_minute_utc" min="0" max="59"
+                       value="{{ google_admin_schedule.minute_utc }}">
+            </div>
+            <div class="col-md-12">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-calendar-check"></i> Save Google Admin Schedule
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Google Admin Sync History -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Google Admin Sync History</h5>
+    </div>
+    <div class="card-body">
+        {% if google_admin_logs %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Trigger</th>
+                        <th>Status</th>
+                        <th>Processed</th>
+                        <th>Created</th>
+                        <th>Updated</th>
+                        <th>Skipped</th>
+                        <th>Devices Processed</th>
+                        <th>Devices Updated</th>
+                        <th>Devices Skipped</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in google_admin_logs %}
+                    <tr>
+                        <td><small>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td>{{ log.trigger_type }}</td>
+                        <td>
+                            {% if log.status == 'success' %}
+                            <span class="badge bg-success">Success</span>
+                            {% elif log.status == 'partial' %}
+                            <span class="badge bg-warning text-dark">Partial</span>
+                            {% else %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ log.users_processed }}</td>
+                        <td>{{ log.users_created }}</td>
+                        <td>{{ log.users_updated }}</td>
+                        <td>{{ log.users_skipped }}</td>
+                        <td>{{ log.devices_processed }}</td>
+                        <td>{{ log.devices_updated }}</td>
+                        <td>{{ log.devices_skipped }}</td>
+                        <td><small>{{ (log.message or '')[:120] }}{% if log.message and log.message|length > 120 %}...{% endif %}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No Google Admin sync history yet.</p>
+        {% endif %}
+    </div>
+</div>
+
 <!-- Example Data -->
 <div class="card mb-4">
     <div class="card-header">
@@ -128,6 +406,7 @@
             </div>
             <p class="text-muted mb-3">
                 Adds 15 users for each role, 15 assets for each asset type, and auto-checks out 5 asset types to 5 different demo users.
+                Also creates 5 demo folders, each with 5 subfolders and 5 markdown docs in each subfolder.
                 Turning this off removes demo users/assets.
             </p>
             <div class="mb-3">
@@ -196,6 +475,7 @@
 
 <!-- Test Connection Result Modal -->
 <div id="test-result" class="alert mt-3" style="display: none;"></div>
+<div id="test-google-admin-result" class="alert mt-3" style="display: none;"></div>
 
 <script>
 document.getElementById('test-connection-btn').addEventListener('click', function() {
@@ -231,6 +511,42 @@ document.getElementById('test-connection-btn').addEventListener('click', functio
         resultDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error: ' + error;
         resultDiv.style.display = 'block';
 
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+});
+
+document.getElementById('test-google-admin-btn').addEventListener('click', function() {
+    const btn = this;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Testing...';
+
+    fetch('{{ url_for("settings.test_google_admin_connection") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultDiv = document.getElementById('test-google-admin-result');
+        if (data.success) {
+            resultDiv.className = 'alert alert-success mt-3';
+            resultDiv.innerHTML = '<i class="bi bi-check-circle"></i> ' + data.message;
+        } else {
+            resultDiv.className = 'alert alert-danger mt-3';
+            resultDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error: ' + data.error;
+        }
+        resultDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    })
+    .catch(error => {
+        const resultDiv = document.getElementById('test-google-admin-result');
+        resultDiv.className = 'alert alert-danger mt-3';
+        resultDiv.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error: ' + error;
+        resultDiv.style.display = 'block';
         btn.disabled = false;
         btn.innerHTML = originalText;
     });

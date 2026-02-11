@@ -140,6 +140,145 @@
     </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Overdue Audit Sweep</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('reports.generate_overdue_sweep') }}" class="row g-3 align-items-end mb-3">
+            <div class="col-md-3">
+                <label for="period_type" class="form-label">Period</label>
+                <select class="form-select" id="period_type" name="period_type">
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-list-check"></i> Generate Audit List
+                </button>
+            </div>
+        </form>
+
+        {% if recent_sweeps %}
+        <form method="GET" action="{{ url_for('reports.index') }}" class="row g-2 align-items-end mb-3">
+            <div class="col-md-6">
+                <label for="sweep_id" class="form-label">View Sweep</label>
+                <select class="form-select" id="sweep_id" name="sweep_id" onchange="this.form.submit()">
+                    {% for sweep in recent_sweeps %}
+                    <option value="{{ sweep.id }}" {% if selected_sweep and sweep.id == selected_sweep.id %}selected{% endif %}>
+                        #{{ sweep.id }} | {{ sweep.period_label }} | {{ sweep.status|title }} | {{ sweep.generated_at.strftime('%Y-%m-%d %H:%M') }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+        {% endif %}
+
+        {% if selected_sweep %}
+        <div class="alert alert-info">
+            Sweep #{{ selected_sweep.id }} ({{ selected_sweep.period_label }}) -
+            Verified: {{ sweep_verified_count }} |
+            Pending: {{ sweep_pending_count }} |
+            Status: {{ selected_sweep.status|title }}
+            {% if selected_sweep.completed_at %}
+            | Completed: {{ selected_sweep.completed_at.strftime('%Y-%m-%d %H:%M') }}
+            {% endif %}
+            <a class="btn btn-sm btn-outline-primary ms-2" href="{{ url_for('reports.download_overdue_sweep_csv', sweep_id=selected_sweep.id) }}">
+                Download List CSV
+            </a>
+        </div>
+
+        <form method="POST" action="{{ url_for('reports.scan_overdue_sweep_item', sweep_id=selected_sweep.id) }}" class="row g-2 align-items-end mb-3">
+            <div class="col-md-6">
+                <label for="scanned_input" class="form-label">Scan / Enter Asset Tag</label>
+                <input type="text" class="form-control" id="scanned_input" name="scanned_input" placeholder="e.g., LT001" autofocus>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-success">
+                    <i class="bi bi-upc-scan"></i> Confirm Scan
+                </button>
+            </div>
+        </form>
+
+        <div class="row g-3">
+            <div class="col-lg-7">
+                <h6>Audit List</h6>
+                {% if selected_sweep_items %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Checked Out To</th>
+                                <th>Due</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in selected_sweep_items %}
+                            <tr>
+                                <td>{{ item.asset_tag }} - {{ item.asset_name }}</td>
+                                <td>{{ item.checked_out_to }}</td>
+                                <td>{{ item.expected_return_date.strftime('%Y-%m-%d') if item.expected_return_date else '-' }}</td>
+                                <td>
+                                    {% if item.status == 'verified' %}
+                                    <span class="badge bg-success">Verified</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No items in this sweep.</p>
+                {% endif %}
+            </div>
+            <div class="col-lg-5">
+                <h6>Scan Log</h6>
+                {% if selected_sweep_logs %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Input</th>
+                                <th>Result</th>
+                                <th>By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in selected_sweep_logs %}
+                            <tr>
+                                <td><small>{{ log.scanned_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                                <td><code>{{ log.scanned_input }}</code></td>
+                                <td>
+                                    {% if log.matched %}
+                                    <span class="badge bg-success">Matched</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">No Match</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ log.scanner.name if log.scanner else '-' }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No scans logged yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No audit sweep yet. Generate one to start scanning.</p>
+        {% endif %}
+    </div>
+</div>
+
 <div class="row g-4 mb-4">
     <div class="col-lg-6">
         <div class="card h-100 border-warning">

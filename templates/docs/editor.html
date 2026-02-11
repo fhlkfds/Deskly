@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}{% if doc %}Edit{% else %}New{% endif %} Document - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-pencil-square"></i> {% if doc %}Edit{% else %}New{% endif %} Document</h2>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('docs.index') }}" class="btn btn-secondary">Back</a>
+    </div>
+</div>
+
+<form method="POST">
+    <div class="row g-3 mb-3">
+        <div class="col-md-8">
+            <label for="title" class="form-label">Title</label>
+            <input type="text" class="form-control" id="title" name="title" value="{{ doc.title if doc else '' }}" required>
+        </div>
+        <div class="col-md-4">
+            <label for="folder_id" class="form-label">Folder</label>
+            <select class="form-select" id="folder_id" name="folder_id">
+                <option value="">No folder</option>
+                {% for folder in folders %}
+                <option value="{{ folder.id }}" {% if doc and doc.folder_id == folder.id %}selected{% endif %}>{{ folder.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <div class="btn-toolbar gap-2" role="toolbar">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="h1">H1</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="h2">H2</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="h3">H3</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bold"><b>B</b></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="italic"><i>I</i></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="underline"><u>U</u></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="strike"><s>S</s></button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="bullet">• List</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="number">1. List</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-cmd="link">Link</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="insertFileBtn">File</button>
+                <input type="file" id="fileUploadInput" class="d-none">
+            </div>
+        </div>
+        <div class="card-body">
+            <label for="content_md" class="form-label">Markdown (source first)</label>
+            <textarea class="form-control font-monospace" id="content_md" name="content_md" rows="18" placeholder="Write markdown here...">{{ doc.content_md if doc else '' }}</textarea>
+            <small class="text-muted">Tip: paste an image directly into this editor to upload and insert markdown automatically.</small>
+
+            <div class="mt-3">
+                <button class="btn btn-sm btn-outline-primary" type="button" id="togglePreviewBtn">Toggle Preview</button>
+            </div>
+            <div class="mt-3 border rounded p-3 d-none" id="previewPane"></div>
+        </div>
+    </div>
+
+    <div class="mt-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Save Document</button>
+        {% if doc %}
+        <a href="{{ url_for('docs.view_document', doc_id=doc.id) }}" class="btn btn-outline-primary">View</a>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+    const editor = document.getElementById('content_md');
+    const previewPane = document.getElementById('previewPane');
+    const previewBtn = document.getElementById('togglePreviewBtn');
+    const fileUploadInput = document.getElementById('fileUploadInput');
+    const insertFileBtn = document.getElementById('insertFileBtn');
+
+    function wrapSelection(prefix, suffix) {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const selected = editor.value.substring(start, end);
+        const before = editor.value.substring(0, start);
+        const after = editor.value.substring(end);
+        editor.value = before + prefix + selected + suffix + after;
+        editor.focus();
+        const cursor = start + prefix.length + selected.length + suffix.length;
+        editor.setSelectionRange(cursor, cursor);
+    }
+
+    function prependLine(prefix) {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const selected = editor.value.substring(start, end) || 'text';
+        const lines = selected.split('\n').map(line => prefix + line).join('\n');
+        const before = editor.value.substring(0, start);
+        const after = editor.value.substring(end);
+        editor.value = before + lines + after;
+        editor.focus();
+    }
+
+    function insertAtCursor(text) {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const before = editor.value.substring(0, start);
+        const after = editor.value.substring(end);
+        editor.value = before + text + after;
+        editor.focus();
+        const cursor = start + text.length;
+        editor.setSelectionRange(cursor, cursor);
+    }
+
+    document.querySelectorAll('[data-cmd]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const cmd = btn.dataset.cmd;
+            if (cmd === 'h1') return prependLine('# ');
+            if (cmd === 'h2') return prependLine('## ');
+            if (cmd === 'h3') return prependLine('### ');
+            if (cmd === 'bold') return wrapSelection('**', '**');
+            if (cmd === 'italic') return wrapSelection('*', '*');
+            if (cmd === 'underline') return wrapSelection('<u>', '</u>');
+            if (cmd === 'strike') return wrapSelection('~~', '~~');
+            if (cmd === 'bullet') return prependLine('- ');
+            if (cmd === 'number') return prependLine('1. ');
+            if (cmd === 'link') {
+                const url = prompt('Enter URL:', 'https://');
+                if (!url) return;
+                return wrapSelection('[', `](${url})`);
+            }
+        });
+    });
+
+    function renderPreview() {
+        previewPane.innerHTML = marked.parse(editor.value || '');
+    }
+
+    previewBtn.addEventListener('click', () => {
+        previewPane.classList.toggle('d-none');
+        if (!previewPane.classList.contains('d-none')) {
+            renderPreview();
+        }
+    });
+
+    editor.addEventListener('input', () => {
+        if (!previewPane.classList.contains('d-none')) renderPreview();
+    });
+
+    function uploadFile(file, endpoint, fieldName) {
+        const data = new FormData();
+        data.append(fieldName, file);
+        {% if doc %}
+        data.append('document_id', '{{ doc.id }}');
+        {% endif %}
+
+        return fetch(endpoint, { method: 'POST', body: data })
+            .then(r => r.json())
+            .then(payload => {
+                if (payload.error) throw new Error(payload.error);
+                return payload.markdown;
+            });
+    }
+
+    editor.addEventListener('paste', async (event) => {
+        const items = (event.clipboardData || {}).items || [];
+        for (const item of items) {
+            if (item.type && item.type.startsWith('image/')) {
+                event.preventDefault();
+                const file = item.getAsFile();
+                try {
+                    const markdown = await uploadFile(file, '{{ url_for("docs.upload_image") }}', 'image');
+                    insertAtCursor(markdown + '\n');
+                } catch (err) {
+                    alert('Image upload failed: ' + err.message);
+                }
+                return;
+            }
+        }
+    });
+
+    insertFileBtn.addEventListener('click', () => fileUploadInput.click());
+    fileUploadInput.addEventListener('change', async () => {
+        const file = fileUploadInput.files[0];
+        if (!file) return;
+        try {
+            const markdown = await uploadFile(file, '{{ url_for("docs.upload_file") }}', 'file');
+            insertAtCursor(markdown + '\n');
+        } catch (err) {
+            alert('File upload failed: ' + err.message);
+        } finally {
+            fileUploadInput.value = '';
+        }
+    });
+</script>
+{% endblock %}

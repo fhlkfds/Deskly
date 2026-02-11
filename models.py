@@ -63,6 +63,9 @@ class Asset(db.Model):
 
     # Google Sheets sync tracking
     google_sheets_row_id = db.Column(db.Integer)
+    google_admin_device_ou_path = db.Column(db.String(255), index=True)
+    google_admin_device_model = db.Column(db.String(120), index=True)
+    device_group = db.Column(db.String(20), index=True)  # admin, helpdesk, staff, teacher, student
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -283,6 +286,218 @@ class AuditSnapshotLog(db.Model):
 
     def __repr__(self):
         return f'<AuditSnapshotLog {self.id} {self.generated_at} {self.status}>'
+
+
+class DocFolder(db.Model):
+    """Folder for organizing documentation pages."""
+
+    __tablename__ = 'doc_folders'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<DocFolder {self.name}>'
+
+
+class Document(db.Model):
+    """Markdown documentation page."""
+
+    __tablename__ = 'documents'
+
+    id = db.Column(db.Integer, primary_key=True)
+    folder_id = db.Column(db.Integer, db.ForeignKey('doc_folders.id'), index=True)
+    title = db.Column(db.String(200), nullable=False, index=True)
+    content_md = db.Column(db.Text, nullable=False, default='')
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    updated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    folder = db.relationship('DocFolder', backref=db.backref('documents', lazy='dynamic'))
+    creator = db.relationship('User', foreign_keys=[created_by])
+    updater = db.relationship('User', foreign_keys=[updated_by])
+
+    def __repr__(self):
+        return f'<Document {self.id} {self.title}>'
+
+
+class DocumentFile(db.Model):
+    """Uploaded file for documentation pages."""
+
+    __tablename__ = 'document_files'
+
+    id = db.Column(db.Integer, primary_key=True)
+    document_id = db.Column(db.Integer, db.ForeignKey('documents.id'), index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_name = db.Column(db.String(255), nullable=False, unique=True)
+    relative_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(120))
+    size_bytes = db.Column(db.Integer)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    document = db.relationship('Document', backref=db.backref('files', lazy='dynamic'))
+    uploader = db.relationship('User')
+
+    def __repr__(self):
+        return f'<DocumentFile {self.id} {self.original_name}>'
+
+
+class OverdueAuditSweep(db.Model):
+    """Monthly/quarterly overdue audit sweep run."""
+
+    __tablename__ = 'overdue_audit_sweeps'
+
+    id = db.Column(db.Integer, primary_key=True)
+    period_type = db.Column(db.String(20), nullable=False, index=True)  # monthly, quarterly
+    period_label = db.Column(db.String(40), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default='open', index=True)  # open, completed
+    generated_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    completed_at = db.Column(db.DateTime)
+    generated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    generator = db.relationship('User')
+
+    def __repr__(self):
+        return f'<OverdueAuditSweep {self.id} {self.period_label}>'
+
+
+class OverdueAuditSweepItem(db.Model):
+    """An overdue checkout item captured in a sweep."""
+
+    __tablename__ = 'overdue_audit_sweep_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sweep_id = db.Column(db.Integer, db.ForeignKey('overdue_audit_sweeps.id'), nullable=False, index=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False, index=True)
+    checkout_id = db.Column(db.Integer, db.ForeignKey('checkouts.id'), nullable=False, index=True)
+    asset_tag = db.Column(db.String(50), nullable=False, index=True)
+    asset_name = db.Column(db.String(200), nullable=False)
+    checked_out_to = db.Column(db.String(100), nullable=False)
+    expected_return_date = db.Column(db.Date)
+    status = db.Column(db.String(20), nullable=False, default='pending', index=True)  # pending, verified
+    scanned_at = db.Column(db.DateTime)
+    scanned_by = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+
+    sweep = db.relationship('OverdueAuditSweep', backref=db.backref('items', lazy='dynamic'))
+    asset = db.relationship('Asset')
+    checkout = db.relationship('Checkout')
+    scanner = db.relationship('User')
+
+    def __repr__(self):
+        return f'<OverdueAuditSweepItem {self.id} {self.asset_tag} {self.status}>'
+
+
+class OverdueAuditSweepScanLog(db.Model):
+    """Scan attempt log for overdue audit sweep."""
+
+    __tablename__ = 'overdue_audit_sweep_scan_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    sweep_id = db.Column(db.Integer, db.ForeignKey('overdue_audit_sweeps.id'), nullable=False, index=True)
+    item_id = db.Column(db.Integer, db.ForeignKey('overdue_audit_sweep_items.id'), index=True)
+    scanned_input = db.Column(db.String(100), nullable=False)
+    matched = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    message = db.Column(db.Text)
+    scanned_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    scanned_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    sweep = db.relationship('OverdueAuditSweep', backref=db.backref('scan_logs', lazy='dynamic'))
+    item = db.relationship('OverdueAuditSweepItem')
+    scanner = db.relationship('User')
+
+    def __repr__(self):
+        return f'<OverdueAuditSweepScanLog {self.id} sweep={self.sweep_id} matched={self.matched}>'
+
+
+class GoogleAdminRoleMapping(db.Model):
+    """Maps Google Admin group email to local user role."""
+
+    __tablename__ = 'google_admin_role_mappings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    group_email = db.Column(db.String(255), nullable=False, unique=True, index=True)
+    role = db.Column(db.String(20), nullable=False, index=True)  # admin, helpdesk, staff, teacher, student
+    enabled = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<GoogleAdminRoleMapping {self.group_email} -> {self.role}>'
+
+
+class GoogleAdminOuRoleMapping(db.Model):
+    """Maps Google Admin OU path to local user role."""
+
+    __tablename__ = 'google_admin_ou_role_mappings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ou_path = db.Column(db.String(255), nullable=False, unique=True, index=True)  # e.g. /Students/Grade-9
+    role = db.Column(db.String(20), nullable=False, index=True)  # admin, helpdesk, staff, teacher, student
+    enabled = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<GoogleAdminOuRoleMapping {self.ou_path} -> {self.role}>'
+
+
+class GoogleAdminSyncSchedule(db.Model):
+    """Schedule for Google Admin user sync."""
+
+    __tablename__ = 'google_admin_sync_schedules'
+
+    id = db.Column(db.Integer, primary_key=True)
+    enabled = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    days_of_week = db.Column(db.String(30), nullable=False, default='')  # comma list: 0..6, Monday=0
+    sync_device_ou = db.Column(db.Boolean, nullable=False, default=False)
+    hour_utc = db.Column(db.Integer, nullable=False, default=1)
+    minute_utc = db.Column(db.Integer, nullable=False, default=0)
+    last_run_at = db.Column(db.DateTime)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<GoogleAdminSyncSchedule enabled={self.enabled} days={self.days_of_week}>'
+
+
+class GoogleAdminSyncLog(db.Model):
+    """Execution log for Google Admin sync."""
+
+    __tablename__ = 'google_admin_sync_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    trigger_type = db.Column(db.String(20), nullable=False)  # manual, scheduled
+    status = db.Column(db.String(20), nullable=False, default='success')  # success, partial, failed
+    users_processed = db.Column(db.Integer, nullable=False, default=0)
+    users_created = db.Column(db.Integer, nullable=False, default=0)
+    users_updated = db.Column(db.Integer, nullable=False, default=0)
+    users_skipped = db.Column(db.Integer, nullable=False, default=0)
+    devices_processed = db.Column(db.Integer, nullable=False, default=0)
+    devices_updated = db.Column(db.Integer, nullable=False, default=0)
+    devices_skipped = db.Column(db.Integer, nullable=False, default=0)
+    message = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    def __repr__(self):
+        return f'<GoogleAdminSyncLog {self.id} {self.status}>'
+
+
+class GoogleAdminDeviceModelMapping(db.Model):
+    """Maps Google Admin device model to local device group."""
+
+    __tablename__ = 'google_admin_device_model_mappings'
+
+    id = db.Column(db.Integer, primary_key=True)
+    device_model = db.Column(db.String(120), nullable=False, unique=True, index=True)
+    device_group = db.Column(db.String(20), nullable=False, index=True)  # admin, helpdesk, staff, teacher, student
+    enabled = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<GoogleAdminDeviceModelMapping {self.device_model} -> {self.device_group}>'
 
 
 class SyncLog(db.Model):
