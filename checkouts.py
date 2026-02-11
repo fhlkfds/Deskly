@@ -1,13 +1,16 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_required, current_user
-from models import db, Asset, Checkout, User
+from auth import roles_required
+from models import db, Asset, Checkout, User, RepairTicket
 from datetime import datetime, timedelta
+from breakage import record_damage_incident
 
 checkouts_bp = Blueprint('checkouts', __name__, url_prefix='/checkouts')
 
 
 @checkouts_bp.route('/')
 @login_required
+@roles_required('admin', 'helpdesk', 'staff')
 def history():
     """View checkout history."""
     page = request.args.get('page', 1, type=int)
@@ -38,6 +41,7 @@ def history():
 
 @checkouts_bp.route('/checkout', methods=['GET', 'POST'])
 @login_required
+@roles_required('admin', 'helpdesk')
 def checkout():
     """Checkout an asset."""
     if request.method == 'POST':
@@ -86,6 +90,7 @@ def checkout():
 
 @checkouts_bp.route('/checkin', methods=['GET', 'POST'])
 @login_required
+@roles_required('admin', 'helpdesk')
 def checkin():
     """Check in an asset."""
     if request.method == 'POST':
@@ -110,6 +115,21 @@ def checkin():
             asset.condition = active_checkout.checkin_condition
             asset.updated_at = datetime.utcnow()
 
+            if active_checkout.checkin_condition == 'needs_repair':
+                if not asset.current_repair:
+                    db.session.add(RepairTicket(
+                        asset_id=asset.id,
+                        status='triage',
+                        notes='Auto-created from check-in (needs repair).'
+                    ))
+                record_damage_incident(
+                    asset_id=asset.id,
+                    checked_out_to=active_checkout.checked_out_to,
+                    source='checkin',
+                    notes=active_checkout.checkin_notes,
+                    checkout_id=active_checkout.id
+                )
+
             db.session.commit()
 
             flash(f'Asset {asset.asset_tag} checked in successfully!', 'success')
@@ -127,6 +147,7 @@ def checkin():
 
 @checkouts_bp.route('/search')
 @login_required
+@roles_required('admin', 'helpdesk', 'staff')
 def search():
     """Search for assets (AJAX endpoint)."""
     query = request.args.get('q', '')
@@ -162,6 +183,7 @@ def search():
 
 @checkouts_bp.route('/fast-checkout', methods=['GET', 'POST'])
 @login_required
+@roles_required('admin', 'helpdesk')
 def fast_checkout():
     """Fast checkout for bulk deployments (e.g., beginning of year)."""
     # Initialize session counter if not exists
@@ -212,6 +234,8 @@ def fast_checkout():
             try:
                 student_name = request.form.get('student_name', '').strip()
                 student_email = request.form.get('student_email', '').strip()
+                student_asset_tag = request.form.get('student_asset_tag', '').strip() or None
+                student_grade_level = request.form.get('student_grade_level', '').strip() or None
 
                 if not student_name or not student_email:
                     flash('Name and email are required.', 'danger')
@@ -221,7 +245,9 @@ def fast_checkout():
                 new_student = User(
                     name=student_name,
                     email=student_email,
-                    role='teacher'  # or 'student' if you add that role
+                    role='student',
+                    asset_tag=student_asset_tag,
+                    grade_level=student_grade_level
                 )
                 new_student.set_password('changeme123')  # Default password
                 db.session.add(new_student)
@@ -329,6 +355,7 @@ def fast_checkout():
 
 @checkouts_bp.route('/fast-checkin', methods=['GET', 'POST'])
 @login_required
+@roles_required('admin', 'helpdesk')
 def fast_checkin():
     """Fast check-in for bulk returns."""
     # Initialize session counter if not exists
@@ -413,6 +440,21 @@ def fast_checkin():
                 asset.condition = condition
                 asset.updated_at = datetime.utcnow()
 
+                if condition == 'needs_repair':
+                    if not asset.current_repair:
+                        db.session.add(RepairTicket(
+                            asset_id=asset.id,
+                            status='triage',
+                            notes='Auto-created from fast check-in (needs repair).'
+                        ))
+                    record_damage_incident(
+                        asset_id=asset.id,
+                        checked_out_to=active_checkout.checked_out_to,
+                        source='fast_checkin',
+                        notes=notes,
+                        checkout_id=active_checkout.id
+                    )
+
                 db.session.commit()
 
                 # Increment counter
@@ -453,6 +495,7 @@ def fast_checkin():
 
 @checkouts_bp.route('/loaner-swap', methods=['GET', 'POST'])
 @login_required
+@roles_required('admin', 'helpdesk')
 def loaner_swap():
     """Swap a broken item with a loaner (check in broken, check out loaner)."""
     if request.method == 'POST':
@@ -488,6 +531,19 @@ def loaner_swap():
             broken_asset.status = 'maintenance'
             broken_asset.condition = 'needs_repair'
             broken_asset.updated_at = datetime.utcnow()
+            if not broken_asset.current_repair:
+                db.session.add(RepairTicket(
+                    asset_id=broken_asset.id,
+                    status='triage',
+                    notes='Auto-created from loaner swap (needs repair).'
+                ))
+            record_damage_incident(
+                asset_id=broken_asset.id,
+                checked_out_to=active_checkout.checked_out_to,
+                source='loaner_swap',
+                notes=checkin_notes,
+                checkout_id=active_checkout.id
+            )
 
             # Step 2: Check out the loaner to the same person
             loaner_checkout = Checkout(

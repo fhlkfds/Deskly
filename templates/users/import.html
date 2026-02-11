@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Import Users - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-upload"></i> Import Users</h2>
+        <p class="text-muted">Upload a CSV file to create users in bulk.</p>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('users.users_template') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-download"></i> Download Template
+        </a>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label for="file" class="form-label">CSV File</label>
+                <input type="file" class="form-control" id="file" name="file" accept=".csv" required>
+                <small class="form-text text-muted">Headers: email, name, role, password, asset_tag, grade_level</small>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-upload"></i> Import Users
+            </button>
+            <a href="{{ url_for('users.list_users') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+
+{% if created is not none %}
+<div class="alert alert-info">
+    Imported: {{ created }} created, {{ skipped }} skipped
+</div>
+{% endif %}
+
+{% if errors %}
+<div class="card">
+    <div class="card-header">
+        <strong>Import Errors (first 20)</strong>
+    </div>
+    <div class="card-body">
+        <ul class="mb-0">
+            {% for err in errors %}
+            <li>{{ err }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

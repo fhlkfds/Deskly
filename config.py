@@ -23,3 +23,14 @@ class Config:
 
     # Pagination
     ITEMS_PER_PAGE = 25
+
+    # Email (for report delivery)
+    SMTP_HOST = os.getenv('SMTP_HOST', '')
+    SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
+    SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
+    SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+    SMTP_USE_TLS = os.getenv('SMTP_USE_TLS', 'true').lower() == 'true'
+    REPORTS_FROM_EMAIL = os.getenv('REPORTS_FROM_EMAIL', SMTP_USERNAME or 'noreply@school.edu')
+
+    # Audit snapshot scheduler
+    SNAPSHOT_SCHEDULER_INTERVAL_MINUTES = int(os.getenv('SNAPSHOT_SCHEDULER_INTERVAL_MINUTES', 5))

@@ -31,6 +31,24 @@ def admin_required(f):
     return decorated_function
 
 
+def roles_required(*roles):
+    """Decorator to require one of the specified roles."""
+    roles_set = set(roles)
+
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return login_manager.unauthorized()
+            if current_user.role not in roles_set:
+                flash('You do not have permission to access this page.', 'danger')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+
+    return decorator
+
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page and handler."""
@@ -45,6 +63,9 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if user and user.check_password(password):
+            if user.role in {'student', 'teacher'}:
+                flash('Your account does not have access to this system.', 'danger')
+                return redirect(url_for('auth.login'))
             login_user(user, remember=remember)
             next_page = request.args.get('next')
             flash(f'Welcome back, {user.name}!', 'success')

@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-bar-chart"></i> Reports</h2>
+        <p class="text-muted mb-0">Run premade reports or build a custom asset fields report.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Audit-Ready Snapshot</h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            Generates a timestamped ZIP with manifest + hashes:
+            <code>manifest.json</code>, <code>manifest.sha256</code>, <code>current_assignments.csv</code>,
+            <code>assets.csv</code>, <code>repairs.csv</code>, <code>assignment_events.csv</code>, <code>users.csv</code>, <code>README.txt</code>.
+        </p>
+
+        <form method="POST" action="{{ url_for('reports.generate_audit_snapshot') }}" class="row g-3 align-items-end mb-3">
+            <div class="col-md-3">
+                <label for="snapshot_delivery_method" class="form-label">Delivery</label>
+                <select class="form-select" id="snapshot_delivery_method" name="snapshot_delivery_method" required>
+                    <option value="download">Download</option>
+                    <option value="email">Email</option>
+                </select>
+            </div>
+            <div class="col-md-5 d-none" id="snapshot_email_group">
+                <label for="snapshot_email_to" class="form-label">Email Address</label>
+                <input type="email" class="form-control" id="snapshot_email_to" name="snapshot_email_to" placeholder="name@school.edu">
+            </div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-file-zip"></i> Generate Snapshot Now
+                </button>
+            </div>
+        </form>
+
+        {% if current_user.role == 'admin' %}
+        <hr>
+        <h6>Scheduled Auto-Email</h6>
+        <form method="POST" action="{{ url_for('reports.update_audit_snapshot_schedule') }}" class="row g-3">
+            <div class="col-md-12">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="snapshot_schedule_enabled" name="snapshot_schedule_enabled" {% if snapshot_schedule.enabled %}checked{% endif %}>
+                    <label class="form-check-label" for="snapshot_schedule_enabled">Enable scheduled snapshots</label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label for="snapshot_schedule_email" class="form-label">Recipient Email</label>
+                <input type="email" class="form-control" id="snapshot_schedule_email" name="snapshot_schedule_email"
+                       value="{{ snapshot_schedule.recipient_email or '' }}" placeholder="name@school.edu">
+            </div>
+            <div class="col-md-2">
+                <label for="snapshot_schedule_frequency" class="form-label">Frequency</label>
+                <select class="form-select" id="snapshot_schedule_frequency" name="snapshot_schedule_frequency">
+                    <option value="daily" {% if snapshot_schedule.frequency == 'daily' %}selected{% endif %}>Daily</option>
+                    <option value="weekly" {% if snapshot_schedule.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="snapshot_schedule_hour_utc" class="form-label">Hour (UTC)</label>
+                <input type="number" class="form-control" id="snapshot_schedule_hour_utc" name="snapshot_schedule_hour_utc"
+                       min="0" max="23" value="{{ snapshot_schedule.hour_utc }}">
+            </div>
+            <div class="col-md-2">
+                <label for="snapshot_schedule_minute_utc" class="form-label">Minute (UTC)</label>
+                <input type="number" class="form-control" id="snapshot_schedule_minute_utc" name="snapshot_schedule_minute_utc"
+                       min="0" max="59" value="{{ snapshot_schedule.minute_utc }}">
+            </div>
+            <div class="col-md-2">
+                <label for="snapshot_schedule_weekday_utc" class="form-label">Weekday (UTC)</label>
+                <select class="form-select" id="snapshot_schedule_weekday_utc" name="snapshot_schedule_weekday_utc">
+                    <option value="0" {% if snapshot_schedule.weekday_utc == 0 %}selected{% endif %}>Mon</option>
+                    <option value="1" {% if snapshot_schedule.weekday_utc == 1 %}selected{% endif %}>Tue</option>
+                    <option value="2" {% if snapshot_schedule.weekday_utc == 2 %}selected{% endif %}>Wed</option>
+                    <option value="3" {% if snapshot_schedule.weekday_utc == 3 %}selected{% endif %}>Thu</option>
+                    <option value="4" {% if snapshot_schedule.weekday_utc == 4 %}selected{% endif %}>Fri</option>
+                    <option value="5" {% if snapshot_schedule.weekday_utc == 5 %}selected{% endif %}>Sat</option>
+                    <option value="6" {% if snapshot_schedule.weekday_utc == 6 %}selected{% endif %}>Sun</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-calendar-check"></i> Save Snapshot Schedule
+                </button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Snapshot History</h5>
+    </div>
+    <div class="card-body">
+        {% if snapshot_logs %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Generated</th>
+                        <th>Trigger</th>
+                        <th>Delivery</th>
+                        <th>Recipient</th>
+                        <th>Manifest SHA256</th>
+                        <th>Status</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in snapshot_logs %}
+                    <tr>
+                        <td><small>{{ log.generated_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td>{{ log.trigger_type }}</td>
+                        <td>{{ log.delivery_method }}</td>
+                        <td>{{ log.recipient_email or '-' }}</td>
+                        <td><code>{{ log.manifest_sha256[:16] }}...</code></td>
+                        <td>
+                            {% if log.status == 'success' %}
+                            <span class="badge bg-success">Success</span>
+                            {% else %}
+                            <span class="badge bg-danger">Failed</span>
+                            {% endif %}
+                        </td>
+                        <td><small>{{ log.message or '-' }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No snapshot runs yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card h-100 border-warning">
+            <div class="card-header">
+                <h5 class="mb-0">Flagged Devices</h5>
+            </div>
+            <div class="card-body">
+                {% if flagged_assets %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for asset in flagged_assets %}
+                            <tr>
+                                <td>{{ asset.asset_tag }} - {{ asset.name }}</td>
+                                <td><span class="badge bg-warning text-dark">Repeat Breakage</span></td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('reports.escalate') }}">
+                                        <input type="hidden" name="entity_type" value="asset">
+                                        <input type="hidden" name="entity_id" value="{{ asset.id }}">
+                                        <input type="hidden" name="reason" value="Device has frequent damage incidents">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Escalate</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No flagged devices.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100 border-warning">
+            <div class="card-header">
+                <h5 class="mb-0">Flagged Students/Users</h5>
+            </div>
+            <div class="card-body">
+                {% if flagged_users %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in flagged_users %}
+                            <tr>
+                                <td>{{ user.name }}</td>
+                                <td>{{ user.role|title }}</td>
+                                <td>
+                                    <form method="POST" action="{{ url_for('reports.escalate') }}">
+                                        <input type="hidden" name="entity_type" value="user">
+                                        <input type="hidden" name="entity_id" value="{{ user.id }}">
+                                        <input type="hidden" name="reason" value="User has frequent damage incidents">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">Escalate</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No flagged users.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Premade Reports</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('reports.generate') }}">
+                    <div class="mb-3">
+                        <label for="report_type" class="form-label">Report Type</label>
+                        <select class="form-select" id="report_type" name="report_type" required>
+                            {% for key, label in premade_reports %}
+                            <option value="{{ key }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="output_format" class="form-label">Output Format</label>
+                        <select class="form-select" id="output_format" name="output_format" required>
+                            <option value="csv">CSV</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="delivery_method" class="form-label">Delivery</label>
+                        <select class="form-select" id="delivery_method" name="delivery_method" required>
+                            <option value="download">Download</option>
+                            <option value="email">Email</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 d-none" id="email_group">
+                        <label for="email_to" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email_to" name="email_to" placeholder="name@school.edu">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-arrow-down"></i> Run Report
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Custom Report</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('reports.generate') }}">
+                    <input type="hidden" name="report_type" value="custom_asset_fields">
+
+                    <div class="mb-3">
+                        <label class="form-label">Asset Fields</label>
+                        <div class="border rounded p-3" style="max-height: 240px; overflow-y: auto;">
+                            {% for field_key, field_label in asset_report_fields %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field_{{ field_key }}" name="fields" value="{{ field_key }}"
+                                       {% if field_key in ['asset_tag', 'name', 'status', 'location'] %}checked{% endif %}>
+                                <label class="form-check-label" for="field_{{ field_key }}">{{ field_label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">Select the fields you want included in the report.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="date_field" class="form-label">Date Field</label>
+                        <select class="form-select" id="date_field" name="date_field">
+                            <option value="created_at">Created At</option>
+                            <option value="updated_at">Updated At</option>
+                            <option value="purchase_date">Purchase Date</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="output_format_custom" class="form-label">Output Format</label>
+                        <select class="form-select" id="output_format_custom" name="output_format" required>
+                            <option value="csv">CSV</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="delivery_method_custom" class="form-label">Delivery</label>
+                        <select class="form-select" id="delivery_method_custom" name="delivery_method" required>
+                            <option value="download">Download</option>
+                            <option value="email">Email</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 d-none" id="email_group_custom">
+                        <label for="email_to_custom" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email_to_custom" name="email_to" placeholder="name@school.edu">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-arrow-down"></i> Run Custom Report
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Escalation Workflow</h5>
+    </div>
+    <div class="card-body">
+        {% if escalation_cases %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Entity</th>
+                        <th>Reason</th>
+                        <th>Status</th>
+                        <th>Evidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for case in escalation_cases %}
+                    <tr>
+                        <td>#{{ case.id }}</td>
+                        <td>
+                            {% if case.entity_type == 'asset' and case.asset %}
+                            Asset: {{ case.asset.asset_tag }}
+                            {% elif case.entity_type == 'user' and case.user %}
+                            User: {{ case.user.name }}
+                            {% else %}
+                            {{ case.entity_type }}
+                            {% endif %}
+                        </td>
+                        <td>{{ case.reason }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('reports.update_escalation_status', case_id=case.id) }}">
+                                <select class="form-select form-select-sm" name="status" onchange="this.form.submit()">
+                                    {% for status_key, status_label in escalation_statuses %}
+                                    <option value="{{ status_key }}" {% if case.status == status_key %}selected{% endif %}>{{ status_label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                        <td><small style="white-space: pre-wrap;">{{ case.evidence[:240] }}{% if case.evidence and case.evidence|length > 240 %}...{% endif %}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No escalation cases yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleEmailGroup(selectId, groupId, inputId) {
+        const deliverySelect = document.getElementById(selectId);
+        const group = document.getElementById(groupId);
+        const input = document.getElementById(inputId);
+        if (!deliverySelect || !group || !input) return;
+
+        function syncVisibility() {
+            const needsEmail = deliverySelect.value === 'email';
+            group.classList.toggle('d-none', !needsEmail);
+            input.required = needsEmail;
+        }
+
+        deliverySelect.addEventListener('change', syncVisibility);
+        syncVisibility();
+    }
+
+    toggleEmailGroup('delivery_method', 'email_group', 'email_to');
+    toggleEmailGroup('delivery_method_custom', 'email_group_custom', 'email_to_custom');
+
+    toggleEmailGroup('snapshot_delivery_method', 'snapshot_email_group', 'snapshot_email_to');
+
+    const frequencySelect = document.getElementById('snapshot_schedule_frequency');
+    const weekdayInput = document.getElementById('snapshot_schedule_weekday_utc');
+    if (frequencySelect && weekdayInput) {
+        function syncWeekdayVisibility() {
+            const weekly = frequencySelect.value === 'weekly';
+            weekdayInput.disabled = !weekly;
+        }
+        frequencySelect.addEventListener('change', syncWeekdayVisibility);
+        syncWeekdayVisibility();
+    }
+</script>
+{% endblock %}

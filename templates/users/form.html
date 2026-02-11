@@ -62,13 +62,37 @@
                     <div class="mb-3">
                         <label for="role" class="form-label">Role <span class="text-danger">*</span></label>
                         <select class="form-select" id="role" name="role" required>
+                            <option value="student" {% if user and user.role == 'student' %}selected{% endif %}>Student</option>
                             <option value="teacher" {% if user and user.role == 'teacher' %}selected{% endif %}>Teacher</option>
                             <option value="staff" {% if user and user.role == 'staff' %}selected{% endif %}>Staff</option>
+                            <option value="helpdesk" {% if user and user.role == 'helpdesk' %}selected{% endif %}>Help Desk</option>
                             <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>Admin</option>
                         </select>
                         <small class="form-text text-muted">
-                            Determines user permissions - Admin has full access, Staff can manage assets, Teacher has limited access
+                            Determines user permissions - Admin full access, Help Desk can checkout/in and add users, Staff view-only, Teacher/Student no access
                         </small>
+                    </div>
+
+                    <!-- Asset Tag -->
+                    <div class="mb-3">
+                        <label for="asset_tag" class="form-label">Asset Tag (Optional)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="asset_tag"
+                               name="asset_tag"
+                               value="{{ user.asset_tag if user else '' }}">
+                        <small class="form-text text-muted">Optional assigned device tag (often used for students)</small>
+                    </div>
+
+                    <!-- Grade Level -->
+                    <div class="mb-3">
+                        <label for="grade_level" class="form-label">Grade Level (Optional)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="grade_level"
+                               name="grade_level"
+                               value="{{ user.grade_level if user else '' }}">
+                        <small class="form-text text-muted">Examples: K, 3, 7, 10, 12</small>
                     </div>
 
                     <!-- Password -->
@@ -125,19 +149,34 @@
                 <h6><i class="bi bi-info-circle"></i> User Role Permissions</h6>
                 <div class="row">
                     <div class="col-md-4">
-                        <strong><span class="badge bg-info">Teacher</span></strong>
+                        <strong><span class="badge bg-secondary">Student</span></strong>
                         <ul class="small mt-2">
-                            <li>View assets</li>
-                            <li>Checkout/check-in</li>
-                            <li>View own history</li>
+                            <li>No system access</li>
+                            <li>Account for tracking only</li>
                         </ul>
                     </div>
                     <div class="col-md-4">
+                        <strong><span class="badge bg-info">Teacher</span></strong>
+                        <ul class="small mt-2">
+                            <li>No system access</li>
+                            <li>Account for tracking only</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <strong><span class="badge bg-primary">Help Desk</span></strong>
+                        <ul class="small mt-2">
+                            <li>Checkout/check-in</li>
+                            <li>View assets/users/history</li>
+                            <li>Create users</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-4">
                         <strong><span class="badge bg-warning">Staff</span></strong>
                         <ul class="small mt-2">
-                            <li>All Teacher permissions</li>
-                            <li>Manage assets</li>
-                            <li>View all history</li>
+                            <li>View assets/users/history</li>
+                            <li>No checkouts</li>
                         </ul>
                     </div>
                     <div class="col-md-4">

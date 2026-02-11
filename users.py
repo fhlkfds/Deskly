@@ -1,31 +1,24 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
 from models import db, User
-from functools import wraps
+from auth import admin_required, roles_required
+import csv
+import io
+import re
 
 users_bp = Blueprint('users', __name__, url_prefix='/users')
 
 
-def admin_required(f):
-    """Decorator to require admin role."""
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if current_user.role != 'admin':
-            flash('You do not have permission to access this page.', 'danger')
-            return redirect(url_for('dashboard'))
-        return f(*args, **kwargs)
-    return decorated_function
-
-
 @users_bp.route('/')
 @login_required
+@roles_required('admin', 'helpdesk', 'staff')
 def list_users():
     """View all users."""
     page = request.args.get('page', 1, type=int)
     per_page = 25
 
     # Get filter parameters
-    role_filter = request.args.get('role', 'all')  # all, admin, staff, teacher
+    role_filter = request.args.get('role', 'all')  # all, admin, staff, teacher, student, helpdesk
     search_query = request.args.get('q', '')
 
     query = User.query
@@ -40,7 +33,8 @@ def list_users():
         query = query.filter(
             db.or_(
                 User.name.ilike(search_filter),
-                User.email.ilike(search_filter)
+                User.email.ilike(search_filter),
+                User.asset_tag.ilike(search_filter)
             )
         )
 
@@ -60,6 +54,7 @@ def list_users():
 
 @users_bp.route('/<int:user_id>')
 @login_required
+@roles_required('admin', 'helpdesk', 'staff')
 def detail(user_id):
     """View user details."""
     user = User.query.get_or_404(user_id)
@@ -75,7 +70,7 @@ def detail(user_id):
 
 @users_bp.route('/create', methods=['GET', 'POST'])
 @login_required
-@admin_required
+@roles_required('admin', 'helpdesk')
 def create():
     """Create a new user."""
     if request.method == 'POST':
@@ -83,6 +78,8 @@ def create():
             name = request.form.get('name', '').strip()
             email = request.form.get('email', '').strip()
             role = request.form.get('role', 'teacher')
+            asset_tag = request.form.get('asset_tag', '').strip() or None
+            grade_level = request.form.get('grade_level', '').strip() or None
             password = request.form.get('password', 'changeme123')
 
             # Validation
@@ -99,7 +96,9 @@ def create():
             new_user = User(
                 name=name,
                 email=email,
-                role=role
+                role=role,
+                asset_tag=asset_tag,
+                grade_level=grade_level
             )
             new_user.set_password(password)
 
@@ -116,6 +115,108 @@ def create():
     return render_template('users/form.html', user=None)
 
 
+@users_bp.route('/import', methods=['GET', 'POST'])
+@login_required
+@roles_required('admin', 'helpdesk')
+def import_users():
+    """Import users from CSV."""
+    if request.method == 'POST':
+        upload = request.files.get('file')
+        if not upload or upload.filename == '':
+            flash('Please choose a CSV file to import.', 'warning')
+            return redirect(url_for('users.import_users'))
+
+        try:
+            content = upload.stream.read().decode('utf-8-sig')
+        except Exception:
+            flash('Unable to read file. Please upload a valid UTF-8 CSV.', 'danger')
+            return redirect(url_for('users.import_users'))
+
+        reader = csv.DictReader(io.StringIO(content))
+        if not reader.fieldnames:
+            flash('CSV is missing header row.', 'danger')
+            return redirect(url_for('users.import_users'))
+
+        def normalize_header(value):
+            return re.sub(r'[^a-z0-9_]', '', value.strip().lower().replace(' ', '_'))
+
+        header_map = {normalize_header(h): h for h in reader.fieldnames}
+
+        def get_value(row, key):
+            original = header_map.get(key)
+            return row.get(original, '').strip() if original else ''
+
+        allowed_roles = {'admin', 'helpdesk', 'staff', 'teacher', 'student'}
+        created = 0
+        skipped = 0
+        errors = []
+
+        for idx, row in enumerate(reader, start=2):
+            email = get_value(row, 'email')
+            name = get_value(row, 'name')
+            role = get_value(row, 'role') or 'staff'
+            password = get_value(row, 'password') or 'changeme123'
+            asset_tag = get_value(row, 'asset_tag') or None
+            grade_level = get_value(row, 'grade_level') or None
+
+            if not email or not name:
+                errors.append(f'Row {idx}: name and email are required.')
+                continue
+            if role not in allowed_roles:
+                errors.append(f'Row {idx}: invalid role "{role}".')
+                continue
+
+            if User.query.filter_by(email=email).first():
+                skipped += 1
+                continue
+
+            new_user = User(
+                name=name,
+                email=email,
+                role=role,
+                asset_tag=asset_tag,
+                grade_level=grade_level
+            )
+            new_user.set_password(password)
+            db.session.add(new_user)
+            created += 1
+
+        if created:
+            db.session.commit()
+
+        if errors:
+            flash('Import completed with errors. See details below.', 'warning')
+            return render_template(
+                'users/import.html',
+                created=created,
+                skipped=skipped,
+                errors=errors[:20]
+            )
+
+        flash(f'Import complete: {created} created, {skipped} skipped.', 'success')
+        return redirect(url_for('users.list_users'))
+
+    return render_template('users/import.html')
+
+
+@users_bp.route('/template.csv')
+@login_required
+@roles_required('admin', 'helpdesk')
+def users_template():
+    """Download CSV template for users."""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['email', 'name', 'role', 'password', 'asset_tag', 'grade_level'])
+    output.seek(0)
+
+    return send_file(
+        io.BytesIO(output.getvalue().encode('utf-8')),
+        mimetype='text/csv',
+        as_attachment=True,
+        download_name='users_template.csv'
+    )
+
+
 @users_bp.route('/<int:user_id>/edit', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -128,6 +229,8 @@ def edit(user_id):
             user.name = request.form.get('name', '').strip()
             user.email = request.form.get('email', '').strip()
             user.role = request.form.get('role', 'teacher')
+            user.asset_tag = request.form.get('asset_tag', '').strip() or None
+            user.grade_level = request.form.get('grade_level', '').strip() or None
 
             # Update password if provided
             new_password = request.form.get('password', '').strip()

@@ -8,9 +8,22 @@
         <h2>Assets</h2>
     </div>
     <div class="col text-end">
+        {% if current_user.role == 'admin' %}
         <a href="{{ url_for('assets.create') }}" class="btn btn-primary">
             <i class="bi bi-plus-circle"></i> Add Asset
         </a>
+        <a href="{{ url_for('assets.import_assets') }}" class="btn btn-outline-primary">
+            <i class="bi bi-upload"></i> Import
+        </a>
+        <a href="{{ url_for('assets.assets_template') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-download"></i> Template
+        </a>
+        {% endif %}
+        {% if current_user.role in ['admin', 'helpdesk'] %}
+        <a href="{{ url_for('assets.repair_assets') }}" class="btn btn-outline-danger">
+            <i class="bi bi-wrench-adjustable"></i> Repair Assets
+        </a>
+        {% endif %}
     </div>
 </div>
 
@@ -107,9 +120,11 @@
                             <a href="{{ url_for('assets.detail', asset_id=asset.id) }}" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-eye"></i> View
                             </a>
+                            {% if current_user.role == 'admin' %}
                             <a href="{{ url_for('assets.edit', asset_id=asset.id) }}" class="btn btn-sm btn-outline-secondary">
                                 <i class="bi bi-pencil"></i>
                             </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

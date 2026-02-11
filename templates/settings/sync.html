@@ -112,6 +112,35 @@
     </div>
 </div>
 
+<!-- Example Data -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Example Data</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('settings.toggle_example_data') }}">
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="example_data_enabled" name="example_data_enabled"
+                       {% if demo_data_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="example_data_enabled">
+                    Enable example data
+                </label>
+            </div>
+            <p class="text-muted mb-3">
+                Adds 15 users for each role, 15 assets for each asset type, and auto-checks out 5 asset types to 5 different demo users.
+                Turning this off removes demo users/assets.
+            </p>
+            <div class="mb-3">
+                <span class="badge bg-secondary">Demo Users: {{ demo_users_count }}</span>
+                <span class="badge bg-secondary">Demo Assets: {{ demo_assets_count }}</span>
+            </div>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> Save Example Data Setting
+            </button>
+        </form>
+    </div>
+</div>
+
 <!-- Sync History -->
 <div class="card">
     <div class="card-header">

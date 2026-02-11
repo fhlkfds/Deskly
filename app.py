@@ -1,12 +1,13 @@
 from flask import Flask, render_template, redirect, url_for, request, jsonify
 from flask_login import login_required, current_user
 from config import Config
-from models import db, Asset, Checkout, User
-from auth import auth_bp, init_auth
+from models import db, Asset, Checkout, User, RepairTicket
+from auth import auth_bp, init_auth, roles_required
 from assets import assets_bp
 from checkouts import checkouts_bp
 from settings import settings_bp
 from users import users_bp
+from reports import reports_bp
 from scheduler import init_scheduler
 from datetime import datetime, timedelta
 import os
@@ -14,6 +15,7 @@ import os
 # Create Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 # Initialize extensions
 db.init_app(app)
@@ -25,13 +27,15 @@ app.register_blueprint(assets_bp)
 app.register_blueprint(checkouts_bp)
 app.register_blueprint(settings_bp)
 app.register_blueprint(users_bp)
+app.register_blueprint(reports_bp)
 
 # Initialize scheduler (commented out by default - uncomment when Google Sheets is configured)
-# init_scheduler(app)
+init_scheduler(app)
 
 
 @app.route('/')
 @login_required
+@roles_required('admin', 'helpdesk', 'staff')
 def index():
     """Redirect to dashboard."""
     return redirect(url_for('dashboard'))
@@ -39,6 +43,7 @@ def index():
 
 @app.route('/dashboard')
 @login_required
+@roles_required('admin', 'helpdesk', 'staff')
 def dashboard():
     """Main dashboard view."""
     # Get summary statistics
@@ -47,6 +52,7 @@ def dashboard():
     checked_out_assets = Asset.query.filter_by(status='checked_out').count()
     deployed_assets = Asset.query.filter_by(status='deployed').count()
     maintenance_assets = Asset.query.filter_by(status='maintenance').count()
+    open_repairs = RepairTicket.query.filter(RepairTicket.status != 'closed').count()
 
     # Recent checkouts (last 10)
     recent_checkouts = Checkout.query.order_by(Checkout.checkout_date.desc()).limit(10).all()
@@ -68,6 +74,7 @@ def dashboard():
                          checked_out_assets=checked_out_assets,
                          deployed_assets=deployed_assets,
                          maintenance_assets=maintenance_assets,
+                         open_repairs=open_repairs,
                          recent_checkouts=recent_checkouts,
                          recent_checkins=recent_checkins,
                          overdue_checkouts=overdue_checkouts)
@@ -75,6 +82,7 @@ def dashboard():
 
 @app.route('/search')
 @login_required
+@roles_required('admin', 'helpdesk', 'staff')
 def search():
     """Global search across all asset fields."""
     query = request.args.get('q', '').strip()

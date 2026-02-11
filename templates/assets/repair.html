@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Repair Assets - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-wrench-adjustable"></i> Repair Assets</h2>
+        <p class="text-muted">Check in broken devices and check out a replacement.</p>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('assets.list_assets') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Assets
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="broken_asset_id" class="form-label">Broken Asset (checked out)</label>
+                    <div class="position-relative">
+                        <input type="text"
+                               class="form-control"
+                               id="broken_asset_display"
+                               placeholder="Click to search broken assets"
+                               autocomplete="off"
+                               required>
+                        <input type="hidden" id="broken_asset_id" name="broken_asset_id" required>
+                        <div class="dropdown-menu w-100 p-0" id="broken_asset_menu" style="max-height: 260px; overflow-y: auto;">
+                            {% for asset in checked_out_assets %}
+                            <button type="button"
+                                    class="dropdown-item asset-option"
+                                    data-for="broken"
+                                    data-id="{{ asset.id }}"
+                                    data-label="{{ asset.asset_tag }} - {{ asset.name }}{% if asset.serial_number %} | SN: {{ asset.serial_number }}{% endif %}{% if asset.current_checkout %} | Out: {{ asset.current_checkout.checked_out_to }}{% endif %}"
+                                    data-search="{{ (asset.asset_tag ~ ' ' ~ asset.name ~ ' ' ~ (asset.serial_number or '') ~ ' ' ~ (asset.current_checkout.checked_out_to if asset.current_checkout else ''))|lower }}">
+                                {{ asset.asset_tag }} - {{ asset.name }}{% if asset.serial_number %} | SN: {{ asset.serial_number }}{% endif %}{% if asset.current_checkout %} | Out: {{ asset.current_checkout.checked_out_to }}{% endif %}
+                            </button>
+                            {% endfor %}
+                            <div class="dropdown-item text-muted d-none" id="broken_asset_empty">No matching assets</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label for="replacement_asset_id" class="form-label">Replacement Asset (available)</label>
+                    <div class="position-relative">
+                        <input type="text"
+                               class="form-control"
+                               id="replacement_asset_display"
+                               placeholder="Click to search replacement assets"
+                               autocomplete="off"
+                               required>
+                        <input type="hidden" id="replacement_asset_id" name="replacement_asset_id" required>
+                        <div class="dropdown-menu w-100 p-0" id="replacement_asset_menu" style="max-height: 260px; overflow-y: auto;">
+                            {% for asset in available_assets %}
+                            <button type="button"
+                                    class="dropdown-item asset-option"
+                                    data-for="replacement"
+                                    data-id="{{ asset.id }}"
+                                    data-label="{{ asset.asset_tag }} - {{ asset.name }}{% if asset.serial_number %} | SN: {{ asset.serial_number }}{% endif %}"
+                                    data-search="{{ (asset.asset_tag ~ ' ' ~ asset.name ~ ' ' ~ (asset.serial_number or ''))|lower }}">
+                                {{ asset.asset_tag }} - {{ asset.name }}{% if asset.serial_number %} | SN: {{ asset.serial_number }}{% endif %}
+                            </button>
+                            {% endfor %}
+                            <div class="dropdown-item text-muted d-none" id="replacement_asset_empty">No matching assets</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label for="status" class="form-label">Repair Status</label>
+                    <select class="form-select" id="status" name="status" required>
+                        {% for status in repair_statuses %}
+                        <option value="{{ status }}" {% if status == 'triage' %}selected{% endif %}>
+                            {{ repair_labels[status] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label for="notes" class="form-label">Notes</label>
+                    <input type="text" class="form-control" id="notes" name="notes" placeholder="Issue summary or repair notes">
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button type="submit" class="btn btn-danger">
+                    <i class="bi bi-arrow-left-right"></i> Process Repair & Checkout Replacement
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Open Repairs</h5>
+    </div>
+    <div class="card-body">
+        {% if open_repairs %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>Status</th>
+                        <th>Last Updated</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for repair in open_repairs %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('assets.detail', asset_id=repair.asset.id) }}">
+                                {{ repair.asset.asset_tag }} - {{ repair.asset.name }}
+                            </a>
+                        </td>
+                        <td><span class="badge bg-secondary">{{ repair_labels[repair.status] }}</span></td>
+                        <td><small class="text-muted">{{ repair.updated_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                        <td>{{ repair.notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-muted">No open repairs.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function setupAssetSearch(type) {
+        const display = document.getElementById(type + '_asset_display');
+        const hidden = document.getElementById(type + '_asset_id');
+        const menu = document.getElementById(type + '_asset_menu');
+        const empty = document.getElementById(type + '_asset_empty');
+        if (!display || !hidden || !menu || !empty) return;
+
+        const options = Array.from(menu.querySelectorAll('.asset-option'));
+
+        function showMenu() {
+            menu.classList.add('show');
+        }
+
+        function hideMenu() {
+            menu.classList.remove('show');
+        }
+
+        function filterOptions() {
+            const term = display.value.trim().toLowerCase();
+            let visible = 0;
+            options.forEach(function(option) {
+                const text = option.dataset.search || '';
+                const matched = !term || text.includes(term);
+                option.classList.toggle('d-none', !matched);
+                if (matched) visible += 1;
+            });
+            empty.classList.toggle('d-none', visible !== 0);
+        }
+
+        display.addEventListener('focus', function() {
+            showMenu();
+            filterOptions();
+        });
+
+        display.addEventListener('click', function() {
+            showMenu();
+            filterOptions();
+        });
+
+        display.addEventListener('input', function() {
+            hidden.value = '';
+            showMenu();
+            filterOptions();
+        });
+
+        options.forEach(function(option) {
+            option.addEventListener('click', function() {
+                display.value = option.dataset.label || option.textContent.trim();
+                hidden.value = option.dataset.id || '';
+                hideMenu();
+            });
+        });
+    }
+
+    setupAssetSearch('broken');
+    setupAssetSearch('replacement');
+
+    document.addEventListener('click', function(event) {
+        ['broken', 'replacement'].forEach(function(type) {
+            const display = document.getElementById(type + '_asset_display');
+            const menu = document.getElementById(type + '_asset_menu');
+            if (!display || !menu) return;
+            const clickedInside = display.contains(event.target) || menu.contains(event.target);
+            if (!clickedInside) {
+                menu.classList.remove('show');
+            }
+        });
+    });
+</script>
+{% endblock %}

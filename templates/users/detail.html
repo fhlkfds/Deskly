@@ -58,12 +58,24 @@
                         <td>
                             {% if user.role == 'admin' %}
                             <span class="badge bg-danger">Admin</span>
+                            {% elif user.role == 'helpdesk' %}
+                            <span class="badge bg-primary">Help Desk</span>
                             {% elif user.role == 'staff' %}
                             <span class="badge bg-warning">Staff</span>
+                            {% elif user.role == 'student' %}
+                            <span class="badge bg-secondary">Student</span>
                             {% else %}
                             <span class="badge bg-info">Teacher</span>
                             {% endif %}
                         </td>
+                    </tr>
+                    <tr>
+                        <th>Asset Tag:</th>
+                        <td>{{ user.asset_tag or '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Grade Level:</th>
+                        <td>{{ user.grade_level or '-' }}</td>
                     </tr>
                     <tr>
                         <th>Created:</th>
@@ -148,22 +160,39 @@
                     <li><i class="bi bi-check-circle-fill text-success"></i> View all reports and history</li>
                     <li><i class="bi bi-check-circle-fill text-success"></i> Access all system settings</li>
                 </ul>
+                {% elif user.role == 'helpdesk' %}
+                <ul class="list-unstyled mb-0">
+                    <li><i class="bi bi-check-circle-fill text-success"></i> View assets and users</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Perform checkouts and check-ins</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Create users</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Configure Google Sheets sync</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> View all reports and history</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Access system settings</li>
+                </ul>
                 {% elif user.role == 'staff' %}
                 <ul class="list-unstyled mb-0">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Manage assets (create, edit, delete)</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Perform checkouts and check-ins</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> View assets and users</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Perform checkouts and check-ins</li>
                     <li><i class="bi bi-x-circle-fill text-danger"></i> Manage users</li>
                     <li><i class="bi bi-x-circle-fill text-danger"></i> Configure Google Sheets sync</li>
                     <li><i class="bi bi-check-circle-fill text-success"></i> View all reports and history</li>
                     <li><i class="bi bi-x-circle-fill text-danger"></i> Access system settings</li>
                 </ul>
-                {% else %}
+                {% elif user.role == 'student' %}
                 <ul class="list-unstyled mb-0">
-                    <li><i class="bi bi-check-circle-fill text-success"></i> View assets</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> Perform checkouts and check-ins</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Access system</li>
                     <li><i class="bi bi-x-circle-fill text-danger"></i> Manage users</li>
                     <li><i class="bi bi-x-circle-fill text-danger"></i> Configure Google Sheets sync</li>
-                    <li><i class="bi bi-check-circle-fill text-success"></i> View own checkout history</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> View checkout history</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Access system settings</li>
+                </ul>
+                {% else %}
+                <ul class="list-unstyled mb-0">
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Access system</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Perform checkouts and check-ins</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Manage users</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Configure Google Sheets sync</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> View checkout history</li>
                     <li><i class="bi bi-x-circle-fill text-danger"></i> Access system settings</li>
                 </ul>
                 {% endif %}

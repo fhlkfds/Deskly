@@ -27,16 +27,39 @@
                             <i class="bi bi-speedometer2"></i> Dashboard
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('assets.list_assets') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-box"></i> Assets
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('assets.list_assets') }}">
+                                <i class="bi bi-box"></i> Browse Assets
+                            </a></li>
+                            {% if current_user.role in ['admin', 'helpdesk'] %}
+                            <li><a class="dropdown-item" href="{{ url_for('assets.repair_assets') }}">
+                                <i class="bi bi-wrench-adjustable"></i> Repair Assets
+                            </a></li>
+                            {% endif %}
+                            {% if current_user.role == 'admin' %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('assets.create') }}">
+                                <i class="bi bi-plus-circle"></i> Add Asset
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('assets.import_assets') }}">
+                                <i class="bi bi-upload"></i> Import Assets
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('assets.assets_template') }}">
+                                <i class="bi bi-download"></i> Download Template
+                            </a></li>
+                            {% endif %}
+                        </ul>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-arrow-left-right"></i> Checkouts
                         </a>
                         <ul class="dropdown-menu">
+                            {% if current_user.role in ['admin', 'helpdesk'] %}
                             <li><a class="dropdown-item" href="{{ url_for('checkouts.fast_checkout') }}">
                                 <i class="bi bi-lightning-charge"></i> Fast Checkout
                             </a></li>
@@ -50,12 +73,18 @@
                             <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout') }}">Check Out</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('checkouts.checkin') }}">Check In</a></li>
                             <li><hr class="dropdown-divider"></li>
+                            {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('checkouts.history') }}">History</a></li>
                         </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('users.list_users') }}">
                             <i class="bi bi-people"></i> Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('reports.index') }}">
+                            <i class="bi bi-bar-chart"></i> Reports
                         </a>
                     </li>
                     {% if current_user.is_admin() %}
