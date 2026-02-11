@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block title %}Fast Check-In - School Inventory System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .fast-checkin-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .checkin-counter {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1000;
+    }
+    .step-indicator {
+        font-size: 3rem;
+        font-weight: bold;
+        color: #198754;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .large-input {
+        font-size: 1.5rem;
+        padding: 1rem;
+        text-align: center;
+    }
+    .action-buttons {
+        margin-top: 2rem;
+    }
+    @media (max-width: 768px) {
+        .checkin-counter {
+            position: static;
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fast-checkin-container">
+    <!-- Check-in Counter Badge -->
+    <div class="checkin-counter">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h5 class="card-title mb-1">Checked In Today</h5>
+                <div class="display-4 text-success">{{ checkin_count }}</div>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="reset">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary mt-2">Reset</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="bi bi-box-arrow-in-left"></i> Fast Check-In - Device Returns</h2>
+            <p class="text-muted">Quickly check in returned devices</p>
+        </div>
+        <div class="col text-end">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="bi bi-x-lg"></i> Exit
+            </a>
+        </div>
+    </div>
+
+    <!-- Step 1: Scan Asset -->,
+    {% if step == 'scan' %}
+    <div class="step-indicator">
+        <i class="bi bi-upc-scan"></i> Scan Device
+    </div>
+
+    <div class="card shadow-lg">
+        <div class="card-body p-5">
+            <h4 class="text-center mb-4">Scan or Enter Device to Check In</h4>
+            <form method="POST" autocomplete="off">
+                <input type="hidden" name="action" value="checkin_asset">
+
+                <div class="mb-4">
+                    <label for="asset_identifier" class="form-label">Asset Tag or Serial Number</label>
+                    <input type="text"
+                           class="form-control large-input"
+                           id="asset_identifier"
+                           name="asset_identifier"
+                           placeholder="Scan barcode or type asset tag"
+                           autocomplete="off"
+                           required
+                           autofocus>
+                    <small class="form-text text-muted">Press Enter to continue</small>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="bi bi-arrow-right"></i> Next
+                    </button>
+                </div>
+            </form>
+
+            <div class="action-buttons text-center">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x"></i> Cancel
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Add Notes and Condition -->
+    {% elif step == 'notes' %}
+    <div class="step-indicator">
+        <i class="bi bi-clipboard-check"></i> Add Details
+    </div>
+
+    <div class="card shadow-lg border-success">
+        <div class="card-body p-5">
+            {% if asset_info %}
+            <div class="alert alert-info">
+                <i class="bi bi-laptop"></i> <strong>Device:</strong> {{ asset_info.asset_tag }} - {{ asset_info.name }}<br>
+                <i class="bi bi-person"></i> <strong>Checked out to:</strong> {{ asset_info.checked_out_to }}
+            </div>
+            {% endif %}
+
+            <h4 class="text-center mb-4">Check-In Details</h4>
+            <form method="POST" autocomplete="off">
+                <input type="hidden" name="action" value="complete_checkin">
+
+                <div class="mb-3">
+                    <label for="condition" class="form-label">Device Condition <span class="text-danger">*</span></label>
+                    <select class="form-select form-select-lg" id="condition" name="condition" required>
+                        <option value="good">Good - No issues</option>
+                        <option value="fair">Fair - Minor wear</option>
+                        <option value="needs_repair">Needs Repair - Damaged</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label for="notes" class="form-label">Notes (Optional)</label>
+                    <textarea class="form-control"
+                              id="notes"
+                              name="notes"
+                              rows="4"
+                              placeholder="Any issues, missing items, or observations..."></textarea>
+                    <small class="form-text text-muted">Add any relevant notes about the device condition</small>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="bi bi-check-circle"></i> Complete Check-In
+                    </button>
+                </div>
+            </form>
+
+            <div class="action-buttons text-center">
+                <a href="{{ url_for('checkouts.fast_checkin') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Different Device
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-danger">
+                    <i class="bi bi-x"></i> Exit
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Screen -->
+    {% elif step == 'checkin_confirmation' %}
+    <div class="step-indicator">
+        <i class="bi bi-check-circle-fill text-success"></i> Checked In!
+    </div>
+
+    <div class="card shadow-lg border-success">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                <h3 class="text-success mt-3">Device Checked In Successfully!</h3>
+            </div>
+
+            {% if last_checkin %}
+            <div class="card bg-light mb-4">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="bi bi-laptop"></i> Device Information</h5>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted"><strong>Asset Tag:</strong></div>
+                        <div class="col-8"><span class="badge bg-primary">{{ last_checkin.asset_tag }}</span></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted"><strong>Device:</strong></div>
+                        <div class="col-8">{{ last_checkin.asset_name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted"><strong>Returned By:</strong></div>
+                        <div class="col-8">{{ last_checkin.student_name }}</div>
+                    </div>
+                    <hr>
+                    <h5 class="mb-3"><i class="bi bi-clipboard-check"></i> Check-In Details</h5>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted"><strong>Condition:</strong></div>
+                        <div class="col-8">
+                            {% if last_checkin.condition == 'good' %}
+                            <span class="badge bg-success">Good</span>
+                            {% elif last_checkin.condition == 'fair' %}
+                            <span class="badge bg-warning">Fair</span>
+                            {% else %}
+                            <span class="badge bg-danger">Needs Repair</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if last_checkin.notes %}
+                    <div class="row">
+                        <div class="col-4 text-muted"><strong>Notes:</strong></div>
+                        <div class="col-8">{{ last_checkin.notes }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="d-grid gap-2">
+                <a href="{{ url_for('checkouts.fast_checkin') }}" class="btn btn-success btn-lg">
+                    <i class="bi bi-arrow-repeat"></i> Next Device
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-check-lg"></i> Finish & Exit
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Help Section -->
+    <div class="card mt-4 bg-light">
+        <div class="card-body">
+            <h6><i class="bi bi-info-circle"></i> Quick Tips</h6>
+            <ul class="mb-0 small">
+                <li><strong>Barcode Scanner:</strong> Scan device barcode for instant entry</li>
+                <li><strong>Keyboard:</strong> Use Tab and Enter for quick navigation</li>
+                <li><strong>Condition:</strong> Select the current condition of the returned device</li>
+                <li><strong>Notes:</strong> Add any damage, missing items, or issues</li>
+                <li><strong>Status:</strong> Devices are marked as "available" after check-in</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-submit on scan (assumes barcode scanner sends Enter key)
+    document.addEventListener('DOMContentLoaded', function() {
+        const inputs = document.querySelectorAll('.large-input');
+        inputs.forEach(input => {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.form.submit();
+                }
+            });
+        });
+
+        // Auto-focus on condition field for keyboard navigation
+        const conditionSelect = document.getElementById('condition');
+        if (conditionSelect) {
+            conditionSelect.focus();
+        }
+    });
+</script>
+{% endblock %}

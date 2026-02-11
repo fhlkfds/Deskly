@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}{{ asset.asset_tag }} - {{ asset.name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2>{{ asset.asset_tag }} - {{ asset.name }}</h2>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('assets.edit', asset_id=asset.id) }}" class="btn btn-primary">
+            <i class="bi bi-pencil"></i> Edit
+        </a>
+        {% if asset.status == 'available' %}
+        <a href="{{ url_for('checkouts.checkout') }}?asset_id={{ asset.id }}" class="btn btn-success">
+            <i class="bi bi-box-arrow-right"></i> Check Out
+        </a>
+        {% elif asset.status == 'checked_out' or asset.status == 'deployed' %}
+        <a href="{{ url_for('checkouts.checkin') }}?asset_id={{ asset.id }}" class="btn btn-warning">
+            <i class="bi bi-box-arrow-in-left"></i> Check In
+        </a>
+        <a href="{{ url_for('checkouts.loaner_swap') }}" class="btn btn-info">
+            <i class="bi bi-arrow-left-right"></i> Loaner Swap
+        </a>
+        {% endif %}
+        <a href="{{ url_for('assets.list_assets') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to List
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Asset Details -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Asset Details</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Asset Tag:</strong><br>
+                        <span class="badge bg-primary">{{ asset.asset_tag }}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Status:</strong><br>
+                        {% if asset.status == 'available' %}
+                        <span class="badge bg-success">Available</span>
+                        {% elif asset.status == 'checked_out' %}
+                        <span class="badge bg-warning text-dark">Checked Out</span>
+                        {% elif asset.status == 'maintenance' %}
+                        <span class="badge bg-danger">Maintenance</span>
+                        {% elif asset.status == 'retired' %}
+                        <span class="badge bg-secondary">Retired</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Name:</strong><br>
+                        {{ asset.name }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Category:</strong><br>
+                        {{ asset.category }}
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Type:</strong><br>
+                        <span class="badge bg-info">{{ asset.type }}</span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Condition:</strong><br>
+                        {% if asset.condition == 'good' %}
+                        <span class="badge bg-success">Good</span>
+                        {% elif asset.condition == 'fair' %}
+                        <span class="badge bg-warning text-dark">Fair</span>
+                        {% else %}
+                        <span class="badge bg-danger">Needs Repair</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if asset.serial_number %}
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <strong>Serial Number:</strong><br>
+                        <code>{{ asset.serial_number }}</code>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if asset.location %}
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <strong>Location:</strong><br>
+                        <i class="bi bi-geo-alt"></i> {{ asset.location }}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if asset.purchase_date or asset.purchase_cost %}
+                <div class="row mb-3">
+                    {% if asset.purchase_date %}
+                    <div class="col-md-6">
+                        <strong>Purchase Date:</strong><br>
+                        {{ asset.purchase_date.strftime('%Y-%m-%d') }}
+                    </div>
+                    {% endif %}
+                    {% if asset.purchase_cost %}
+                    <div class="col-md-6">
+                        <strong>Purchase Cost:</strong><br>
+                        ${{ '%.2f'|format(asset.purchase_cost) }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if asset.notes %}
+                <div class="row mb-3">
+                    <div class="col-12">
+                        <strong>Notes:</strong><br>
+                        <p class="mb-0">{{ asset.notes }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="row">
+                    <div class="col-12">
+                        <small class="text-muted">
+                            Created: {{ asset.created_at.strftime('%Y-%m-%d %H:%M') }} |
+                            Updated: {{ asset.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Current Checkout Info -->
+        {% if asset.current_checkout %}
+        <div class="card mb-4 border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Current Checkout</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Checked out to:</strong><br>{{ asset.current_checkout.checked_out_to }}</p>
+                <p><strong>Checkout date:</strong><br>{{ asset.current_checkout.checkout_date.strftime('%Y-%m-%d %H:%M') }}</p>
+                {% if asset.current_checkout.expected_return_date %}
+                <p><strong>Expected return:</strong><br>
+                    {{ asset.current_checkout.expected_return_date.strftime('%Y-%m-%d') }}
+                    {% if asset.current_checkout.is_overdue %}
+                    <span class="badge bg-danger">OVERDUE</span>
+                    {% endif %}
+                </p>
+                {% endif %}
+                <p><strong>Checked out by:</strong><br>{{ asset.current_checkout.user.name }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Actions</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('assets.delete', asset_id=asset.id) }}" onsubmit="return confirm('Are you sure you want to retire this asset?');">
+                    <button type="submit" class="btn btn-danger w-100 mb-2">
+                        <i class="bi bi-trash"></i> Retire Asset
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Checkout History -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Checkout History</h5>
+    </div>
+    <div class="card-body">
+        {% if checkouts %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Checked Out To</th>
+                        <th>Checkout Date</th>
+                        <th>Expected Return</th>
+                        <th>Checked In</th>
+                        <th>Condition</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for checkout in checkouts %}
+                    <tr {% if checkout.is_active %}class="table-warning"{% endif %}>
+                        <td>{{ checkout.checked_out_to }}</td>
+                        <td>{{ checkout.checkout_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ checkout.expected_return_date.strftime('%Y-%m-%d') if checkout.expected_return_date else '-' }}</td>
+                        <td>
+                            {% if checkout.checked_in_date %}
+                            {{ checkout.checked_in_date.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                            <span class="badge bg-warning text-dark">Active</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if checkout.checkin_condition %}
+                            <span class="badge bg-secondary">{{ checkout.checkin_condition }}</span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ checkout.checkin_notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No checkout history for this asset.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

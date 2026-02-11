@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2>Dashboard</h2>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('assets.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Asset
+        </a>
+    </div>
+</div>
+
+<!-- Global Search Box -->
+<div class="row mb-4">
+    <div class="col-md-8 offset-md-2">
+        <div class="search-box">
+            <div class="input-group input-group-lg">
+                <span class="input-group-text">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input type="text"
+                       class="form-control"
+                       id="globalSearch"
+                       placeholder="Search assets by tag, name, location, serial number, status, type, owner..."
+                       autocomplete="off">
+                <button class="btn btn-outline-secondary" type="button" id="clearSearch">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div id="searchResults" class="search-results"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h6 class="card-title">Total Assets</h6>
+                <h2 class="mb-0">{{ total_assets }}</h2>
+                <small>Active</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <h6 class="card-title">Available</h6>
+                <h2 class="mb-0">{{ available_assets }}</h2>
+                <small>Ready</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <h6 class="card-title">Deployed</h6>
+                <h2 class="mb-0">{{ deployed_assets }}</h2>
+                <small>Students</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <h6 class="card-title">Checked Out</h6>
+                <h2 class="mb-0">{{ checked_out_assets }}</h2>
+                <small>Temporary</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-2 col-md-4 col-sm-6">
+        <div class="card text-white bg-danger">
+            <div class="card-body">
+                <h6 class="card-title">Maintenance</h6>
+                <h2 class="mb-0">{{ maintenance_assets }}</h2>
+                <small>Repair</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overdue Items Alert -->
+{% if overdue_checkouts %}
+<div class="alert alert-danger" role="alert">
+    <h5 class="alert-heading"><i class="bi bi-exclamation-triangle"></i> Overdue Items</h5>
+    <p>There are {{ overdue_checkouts|length }} overdue items that need to be returned.</p>
+    <hr>
+    <ul class="mb-0">
+        {% for checkout in overdue_checkouts %}
+        <li>
+            <a href="{{ url_for('assets.detail', asset_id=checkout.asset.id) }}" class="alert-link">
+                {{ checkout.asset.asset_tag }} - {{ checkout.asset.name }}
+            </a>
+            (Due: {{ checkout.expected_return_date.strftime('%Y-%m-%d') }}, Checked out to: {{ checkout.checked_out_to }})
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div class="row">
+    <!-- Recent Checkouts -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Checkouts</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_checkouts %}
+                <div class="list-group list-group-flush">
+                    {% for checkout in recent_checkouts %}
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                <a href="{{ url_for('assets.detail', asset_id=checkout.asset.id) }}">
+                                    {{ checkout.asset.asset_tag }} - {{ checkout.asset.name }}
+                                </a>
+                            </h6>
+                            <small class="text-muted">{{ checkout.checkout_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </div>
+                        <small class="text-muted">To: {{ checkout.checked_out_to }}</small>
+                        {% if checkout.is_active %}
+                        <span class="badge bg-warning text-dark">Active</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No recent checkouts.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Check-ins -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Check-ins</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_checkins %}
+                <div class="list-group list-group-flush">
+                    {% for checkout in recent_checkins %}
+                    <div class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                <a href="{{ url_for('assets.detail', asset_id=checkout.asset.id) }}">
+                                    {{ checkout.asset.asset_tag }} - {{ checkout.asset.name }}
+                                </a>
+                            </h6>
+                            <small class="text-muted">{{ checkout.checked_in_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </div>
+                        <small class="text-muted">
+                            From: {{ checkout.checked_out_to }} |
+                            Condition: <span class="badge bg-secondary">{{ checkout.checkin_condition }}</span>
+                        </small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">No recent check-ins.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">Quick Actions</h5>
+                <a href="{{ url_for('checkouts.fast_checkout') }}" class="btn btn-warning btn-lg mx-2 mb-2">
+                    <i class="bi bi-lightning-charge"></i> Fast Checkout
+                </a>
+                <a href="{{ url_for('checkouts.checkout') }}" class="btn btn-primary btn-lg mx-2 mb-2">
+                    <i class="bi bi-box-arrow-right"></i> Check Out Asset
+                </a>
+                <a href="{{ url_for('checkouts.checkin') }}" class="btn btn-success btn-lg mx-2 mb-2">
+                    <i class="bi bi-box-arrow-in-left"></i> Check In Asset
+                </a>
+                <a href="{{ url_for('checkouts.loaner_swap') }}" class="btn btn-secondary btn-lg mx-2 mb-2">
+                    <i class="bi bi-arrow-left-right"></i> Loaner Swap
+                </a>
+                <a href="{{ url_for('assets.list_assets') }}" class="btn btn-info btn-lg mx-2 mb-2">
+                    <i class="bi bi-search"></i> Browse Assets
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global search functionality
+    const searchInput = document.getElementById('globalSearch');
+    const searchResults = document.getElementById('searchResults');
+    const clearSearchBtn = document.getElementById('clearSearch');
+    let searchTimeout;
+
+    // Perform search
+    function performSearch(query) {
+        if (query.length < 2) {
+            searchResults.innerHTML = '';
+            searchResults.classList.remove('card', 'border');
+            return;
+        }
+
+        fetch(`/search?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                displayResults(data, query);
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                searchResults.innerHTML = '<div class="card border"><div class="card-body text-danger">Error performing search</div></div>';
+            });
+    }
+
+    // Display search results
+    function displayResults(results, query) {
+        if (results.length === 0) {
+            searchResults.innerHTML = '<div class="card border"><div class="card-body text-muted">No assets found</div></div>';
+            searchResults.classList.add('card', 'border');
+            return;
+        }
+
+        let html = '<div class="card border"><div class="list-group list-group-flush">';
+
+        results.forEach(asset => {
+            // Status badge color
+            let statusColor = 'secondary';
+            if (asset.status === 'available') statusColor = 'success';
+            else if (asset.status === 'checked_out') statusColor = 'warning';
+            else if (asset.status === 'maintenance') statusColor = 'danger';
+
+            // Condition badge color
+            let conditionColor = 'secondary';
+            if (asset.condition === 'good') conditionColor = 'success';
+            else if (asset.condition === 'fair') conditionColor = 'warning';
+            else if (asset.condition === 'needs_repair') conditionColor = 'danger';
+
+            html += `
+                <a href="/assets/${asset.id}" class="list-group-item list-group-item-action search-result-item">
+                    <div class="d-flex w-100 justify-content-between align-items-start">
+                        <div>
+                            <h6 class="mb-1">
+                                <strong>${highlightMatch(asset.asset_tag, query)}</strong> - ${highlightMatch(asset.name, query)}
+                            </h6>
+                            <p class="mb-1 small">
+                                <span class="badge bg-info">${highlightMatch(asset.type, query)}</span>
+                                <span class="badge bg-${statusColor}">${highlightMatch(asset.status, query)}</span>
+                                <span class="badge bg-${conditionColor}">${highlightMatch(asset.condition, query)}</span>
+                            </p>
+                            ${asset.location ? `<small class="text-muted"><i class="bi bi-geo-alt"></i> ${highlightMatch(asset.location, query)}</small>` : ''}
+                            ${asset.serial_number ? `<small class="text-muted ms-2"><i class="bi bi-hash"></i> ${highlightMatch(asset.serial_number, query)}</small>` : ''}
+                            ${asset.checked_out_to ? `<br><small class="text-warning"><i class="bi bi-person"></i> Checked out to: ${highlightMatch(asset.checked_out_to, query)}</small>` : ''}
+                        </div>
+                        <small class="text-muted"><i class="bi bi-chevron-right"></i></small>
+                    </div>
+                </a>
+            `;
+        });
+
+        html += '</div></div>';
+        searchResults.innerHTML = html;
+        searchResults.classList.add('card', 'border');
+    }
+
+    // Highlight matching text
+    function highlightMatch(text, query) {
+        if (!text) return '';
+        const regex = new RegExp(`(${query})`, 'gi');
+        return text.toString().replace(regex, '<span class="search-highlight">$1</span>');
+    }
+
+    // Search input event listener
+    searchInput.addEventListener('input', function(e) {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+
+        if (query.length < 2) {
+            searchResults.innerHTML = '';
+            searchResults.classList.remove('card', 'border');
+            return;
+        }
+
+        // Debounce search
+        searchTimeout = setTimeout(() => {
+            performSearch(query);
+        }, 300);
+    });
+
+    // Clear search
+    clearSearchBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        searchResults.innerHTML = '';
+        searchResults.classList.remove('card', 'border');
+        searchInput.focus();
+    });
+
+    // Close results when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.innerHTML = '';
+            searchResults.classList.remove('card', 'border');
+        }
+    });
+
+    // Keyboard navigation
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            searchInput.value = '';
+            searchResults.innerHTML = '';
+            searchResults.classList.remove('card', 'border');
+        }
+    });
+</script>
+{% endblock %}

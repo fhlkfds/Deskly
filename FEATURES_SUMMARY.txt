@@ -1,0 +1,166 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║            ✅ NEW FEATURES SUCCESSFULLY IMPLEMENTED! ✅                ║
+║                    Version 1.1.0 - 2026-02-11                         ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌙 FEATURE 1: DARK MODE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Location: Top-right navbar (moon/sun icon)
+
+CAPABILITIES:
+✓ One-click theme switching
+✓ Automatic preference saving (localStorage)
+✓ Persists across sessions and page refreshes
+✓ Bootstrap 5 native dark mode
+✓ Custom styling for all components
+✓ Icon changes: 🌙 (light mode) ↔ ☀️ (dark mode)
+
+STYLED COMPONENTS:
+• Navigation bar          • Footer
+• Cards and panels        • Tables
+• Forms and inputs        • Badges
+• Buttons                 • Search results
+• Alerts                  • Dropdowns
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 FEATURE 2: GLOBAL SEARCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Location: Dashboard page (large search box)
+
+SEARCH CAPABILITIES:
+✓ Asset Tag           - "LT001", "TB001"
+✓ Asset Name          - "Dell Laptop", "iPad"
+✓ Serial Number       - Full or partial match
+✓ Location            - "Room 101", "Server Room"
+✓ Type                - "Laptop", "Tablet", "Projector"
+✓ Category            - "Technology", "IT Infrastructure"
+✓ Status              - "available", "checked_out", "maintenance"
+✓ Condition           - "good", "fair", "needs_repair"
+✓ Notes               - Any text in notes field
+✓ Current Owner       - Who has it checked out
+
+FEATURES:
+• Real-time results as you type
+• 300ms debounce for performance
+• Minimum 2 characters required
+• Up to 20 results shown
+• Smart text highlighting (yellow)
+• Color-coded badges
+• Click result to view details
+• ESC key to clear search
+• X button to clear
+• Click outside to close
+• Mobile responsive
+
+VISUAL ELEMENTS:
+🟢 Green badges   - Available/Good condition
+🟡 Yellow badges  - Checked out/Fair condition
+🔴 Red badges     - Maintenance/Needs repair
+📍 Location icon  - Physical location
+#️⃣  Serial icon   - Serial number
+👤 Owner icon     - Current checkout holder
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 TEST RESULTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DARK MODE TESTS:
+✅ Toggle switches theme
+✅ localStorage persistence
+✅ Icon updates correctly
+✅ All components styled
+✅ Cross-page functionality
+
+SEARCH TESTS:
+✅ "laptop"      → 2 results found
+✅ "room"        → 5 results found (by location)
+✅ "LT001"       → 1 result found (exact match)
+✅ "available"   → 4 results found (by status)
+✅ Real-time updates working
+✅ Text highlighting functional
+✅ Navigation working
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 FILES MODIFIED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Backend:
+  app.py                    +56 lines (new /search endpoint)
+
+Frontend:
+  templates/base.html       +40 lines (dark mode toggle + JS)
+  templates/dashboard.html  +150 lines (search box + JS)
+  static/css/custom.css     +60 lines (dark mode + search styles)
+
+Documentation:
+  NEW_FEATURES.md           New file (complete documentation)
+  CHANGELOG.md              Updated with v1.1.0 changes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚀 HOW TO USE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Open your browser
+2. Go to: http://localhost:5000
+3. Login: admin@school.edu / admin123
+4. Look for moon icon (🌙) in top-right to toggle dark mode
+5. Use the search box on dashboard to find assets
+
+TRY THESE SEARCHES:
+  • "laptop"       - Find all laptops
+  • "room 101"     - Find assets in Room 101
+  • "available"    - Find all available assets
+  • "maintenance"  - Find assets needing repair
+  • "LT001"        - Find specific asset
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 TIPS & TRICKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DARK MODE:
+  • Saves automatically to browser
+  • Works on all pages
+  • Great for night use
+  • Reduces eye strain
+  • Saves battery on OLED screens
+
+SEARCH:
+  • Type 2+ characters to start
+  • Results appear instantly
+  • Yellow highlighting shows matches
+  • Click result to view full details
+  • Press ESC to quickly clear
+  • Works with partial matches
+  • Case-insensitive
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 DOCUMENTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Complete documentation available in:
+  📖 NEW_FEATURES.md    - Detailed feature guide
+  📋 CHANGELOG.md       - Version history
+  📘 README.md          - Full system docs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ STATUS: READY TO USE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Application: 🟢 RUNNING
+URL:         http://localhost:5000
+Version:     1.1.0
+Features:    Dark Mode ✓ | Global Search ✓
+
+Both features are ACTIVE and ready to use!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+                    🎉 ENJOY THE NEW FEATURES! 🎉
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

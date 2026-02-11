@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Loaner Swap - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-arrow-left-right"></i> Loaner Swap</h2>
+        <p class="text-muted">Check in a broken item and simultaneously check out a loaner</p>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-x"></i> Cancel
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-10 offset-md-1">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <form method="POST" id="swapForm">
+                    <div class="row">
+                        <!-- Left Column: Broken Asset (Check In) -->
+                        <div class="col-md-6">
+                            <div class="card border-danger mb-3">
+                                <div class="card-header bg-danger text-white">
+                                    <h5 class="mb-0"><i class="bi bi-box-arrow-in-left"></i> Check In (Broken)</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="broken_asset_id" class="form-label">Select Broken Asset <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="broken_asset_id" name="broken_asset_id" required onchange="updateSwapInfo()">
+                                            <option value="">-- Select asset to check in --</option>
+                                            {% for asset in checked_out_assets %}
+                                            <option value="{{ asset.id }}"
+                                                    data-tag="{{ asset.asset_tag }}"
+                                                    data-name="{{ asset.name }}"
+                                                    data-type="{{ asset.type }}"
+                                                    data-checkout-to="{{ asset.current_checkout.checked_out_to if asset.current_checkout else '' }}">
+                                                {{ asset.asset_tag }} - {{ asset.name }}
+                                                {% if asset.current_checkout %}
+                                                ({{ asset.current_checkout.checked_out_to }})
+                                                {% endif %}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                        {% if not checked_out_assets %}
+                                        <div class="alert alert-info mt-2 mb-0">
+                                            No assets are currently checked out.
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div id="broken-info" class="alert alert-light" style="display: none;">
+                                        <h6 class="mb-2">Asset Information:</h6>
+                                        <p class="mb-1"><strong>Tag:</strong> <span id="broken-tag">-</span></p>
+                                        <p class="mb-1"><strong>Name:</strong> <span id="broken-name">-</span></p>
+                                        <p class="mb-1"><strong>Type:</strong> <span id="broken-type">-</span></p>
+                                        <p class="mb-0"><strong>Checked out to:</strong> <span id="broken-checkout-to">-</span></p>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label for="checkin_notes" class="form-label">Issue Description</label>
+                                        <textarea class="form-control" id="checkin_notes" name="checkin_notes" rows="3"
+                                                  placeholder="Describe what's wrong with the device..."></textarea>
+                                        <small class="form-text text-muted">What issue requires a loaner swap?</small>
+                                    </div>
+
+                                    <div class="alert alert-warning mb-0">
+                                        <i class="bi bi-exclamation-triangle"></i> Asset will be marked as <strong>"needs_repair"</strong> and moved to <strong>"maintenance"</strong> status.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Loaner Asset (Check Out) -->
+                        <div class="col-md-6">
+                            <div class="card border-success mb-3">
+                                <div class="card-header bg-success text-white">
+                                    <h5 class="mb-0"><i class="bi bi-box-arrow-right"></i> Check Out (Loaner)</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="loaner_asset_id" class="form-label">Select Loaner <span class="text-danger">*</span></label>
+                                        <select class="form-select" id="loaner_asset_id" name="loaner_asset_id" required onchange="updateLoanerInfo()">
+                                            <option value="">-- Select loaner asset --</option>
+                                            {% for type in available_assets|map(attribute='type')|unique|list %}
+                                            <optgroup label="{{ type }}">
+                                                {% for asset in available_assets if asset.type == type %}
+                                                <option value="{{ asset.id }}"
+                                                        data-tag="{{ asset.asset_tag }}"
+                                                        data-name="{{ asset.name }}"
+                                                        data-type="{{ asset.type }}"
+                                                        data-condition="{{ asset.condition }}">
+                                                    {{ asset.asset_tag }} - {{ asset.name }}
+                                                    ({{ asset.condition }})
+                                                </option>
+                                                {% endfor %}
+                                            </optgroup>
+                                            {% endfor %}
+                                        </select>
+                                        {% if not available_assets %}
+                                        <div class="alert alert-danger mt-2 mb-0">
+                                            No loaner assets are available!
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div id="loaner-info" class="alert alert-light" style="display: none;">
+                                        <h6 class="mb-2">Loaner Information:</h6>
+                                        <p class="mb-1"><strong>Tag:</strong> <span id="loaner-tag">-</span></p>
+                                        <p class="mb-1"><strong>Name:</strong> <span id="loaner-name">-</span></p>
+                                        <p class="mb-1"><strong>Type:</strong> <span id="loaner-type">-</span></p>
+                                        <p class="mb-0"><strong>Condition:</strong> <span id="loaner-condition">-</span></p>
+                                    </div>
+
+                                    <div id="swap-warning" class="alert alert-warning" style="display: none;">
+                                        <i class="bi bi-exclamation-triangle"></i> <strong>Type mismatch!</strong> The loaner type doesn't match the broken asset type.
+                                    </div>
+
+                                    <div class="alert alert-info mb-0">
+                                        <i class="bi bi-info-circle"></i> Loaner will be checked out to the same person with the same expected return date.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Swap Summary -->
+                    <div id="swap-summary" class="card bg-light mb-3" style="display: none;">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-arrow-left-right"></i> Swap Summary</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-0"><strong>Person:</strong> <span id="summary-person">-</span></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-0">
+                                        <span id="summary-broken-tag" class="badge bg-danger">-</span>
+                                        <i class="bi bi-arrow-right"></i>
+                                        <span id="summary-loaner-tag" class="badge bg-success">-</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
+                            <i class="bi bi-arrow-left-right"></i> Perform Loaner Swap
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Help Card -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-question-circle"></i> How Loaner Swap Works</h5>
+            </div>
+            <div class="card-body">
+                <ol class="mb-0">
+                    <li><strong>Check In Broken Asset:</strong> The broken/malfunctioning asset is checked in with condition "needs_repair" and status "maintenance".</li>
+                    <li><strong>Check Out Loaner:</strong> A replacement loaner asset is checked out to the same person.</li>
+                    <li><strong>Maintains Continuity:</strong> The expected return date is carried over to the loaner checkout.</li>
+                    <li><strong>One Transaction:</strong> Both operations happen atomically - if either fails, neither happens.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateSwapInfo() {
+    const brokenSelect = document.getElementById('broken_asset_id');
+    const selectedBroken = brokenSelect.options[brokenSelect.selectedIndex];
+    const brokenInfo = document.getElementById('broken-info');
+
+    if (selectedBroken.value) {
+        document.getElementById('broken-tag').textContent = selectedBroken.getAttribute('data-tag') || '-';
+        document.getElementById('broken-name').textContent = selectedBroken.getAttribute('data-name') || '-';
+        document.getElementById('broken-type').textContent = selectedBroken.getAttribute('data-type') || '-';
+        document.getElementById('broken-checkout-to').textContent = selectedBroken.getAttribute('data-checkout-to') || '-';
+        brokenInfo.style.display = 'block';
+    } else {
+        brokenInfo.style.display = 'none';
+    }
+
+    updateSubmitButton();
+    updateSwapSummary();
+}
+
+function updateLoanerInfo() {
+    const loanerSelect = document.getElementById('loaner_asset_id');
+    const selectedLoaner = loanerSelect.options[loanerSelect.selectedIndex];
+    const loanerInfo = document.getElementById('loaner-info');
+
+    if (selectedLoaner.value) {
+        document.getElementById('loaner-tag').textContent = selectedLoaner.getAttribute('data-tag') || '-';
+        document.getElementById('loaner-name').textContent = selectedLoaner.getAttribute('data-name') || '-';
+        document.getElementById('loaner-type').textContent = selectedLoaner.getAttribute('data-type') || '-';
+        document.getElementById('loaner-condition').textContent = selectedLoaner.getAttribute('data-condition') || '-';
+        loanerInfo.style.display = 'block';
+    } else {
+        loanerInfo.style.display = 'none';
+    }
+
+    checkTypeMatch();
+    updateSubmitButton();
+    updateSwapSummary();
+}
+
+function checkTypeMatch() {
+    const brokenSelect = document.getElementById('broken_asset_id');
+    const loanerSelect = document.getElementById('loaner_asset_id');
+    const selectedBroken = brokenSelect.options[brokenSelect.selectedIndex];
+    const selectedLoaner = loanerSelect.options[loanerSelect.selectedIndex];
+    const warning = document.getElementById('swap-warning');
+
+    if (selectedBroken.value && selectedLoaner.value) {
+        const brokenType = selectedBroken.getAttribute('data-type');
+        const loanerType = selectedLoaner.getAttribute('data-type');
+
+        if (brokenType !== loanerType) {
+            warning.style.display = 'block';
+        } else {
+            warning.style.display = 'none';
+        }
+    } else {
+        warning.style.display = 'none';
+    }
+}
+
+function updateSubmitButton() {
+    const brokenSelect = document.getElementById('broken_asset_id');
+    const loanerSelect = document.getElementById('loaner_asset_id');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (brokenSelect.value && loanerSelect.value) {
+        submitBtn.disabled = false;
+    } else {
+        submitBtn.disabled = true;
+    }
+}
+
+function updateSwapSummary() {
+    const brokenSelect = document.getElementById('broken_asset_id');
+    const loanerSelect = document.getElementById('loaner_asset_id');
+    const selectedBroken = brokenSelect.options[brokenSelect.selectedIndex];
+    const selectedLoaner = loanerSelect.options[loanerSelect.selectedIndex];
+    const summary = document.getElementById('swap-summary');
+
+    if (selectedBroken.value && selectedLoaner.value) {
+        document.getElementById('summary-person').textContent = selectedBroken.getAttribute('data-checkout-to') || '-';
+        document.getElementById('summary-broken-tag').textContent = selectedBroken.getAttribute('data-tag') || '-';
+        document.getElementById('summary-loaner-tag').textContent = selectedLoaner.getAttribute('data-tag') || '-';
+        summary.style.display = 'block';
+    } else {
+        summary.style.display = 'none';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateSwapInfo();
+    updateLoanerInfo();
+});
+</script>
+{% endblock %}

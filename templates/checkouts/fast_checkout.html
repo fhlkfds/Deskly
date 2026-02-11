@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+
+{% block title %}Fast Checkout - School Inventory System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .fast-checkout-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .checkout-counter {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1000;
+    }
+    .step-indicator {
+        font-size: 3rem;
+        font-weight: bold;
+        color: #0d6efd;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .large-input {
+        font-size: 1.5rem;
+        padding: 1rem;
+        text-align: center;
+    }
+    .action-buttons {
+        margin-top: 2rem;
+    }
+    .recent-checkouts {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    @media (max-width: 768px) {
+        .checkout-counter {
+            position: static;
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fast-checkout-container">
+    <!-- Checkout Counter Badge -->
+    <div class="checkout-counter">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h5 class="card-title mb-1">Deployed Today</h5>
+                <div class="display-4 text-success">{{ checkout_count }}</div>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="reset">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary mt-2">Reset</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col">
+            <h2><i class="bi bi-lightning-charge"></i> Fast Checkout - Device Deployment</h2>
+            <p class="text-muted">Quickly deploy devices to students</p>
+        </div>
+        <div class="col text-end">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="bi bi-x-lg"></i> Exit
+            </a>
+        </div>
+    </div>
+
+    <!-- Step 1: Student Identification -->
+    {% if step == 'student' %}
+    <div class="step-indicator">
+        <i class="bi bi-person-badge"></i> Step 1: Student
+    </div>
+
+    <div class="card shadow-lg">
+        <div class="card-body p-5">
+            <h4 class="text-center mb-4">Enter Student Information</h4>
+            <form method="POST" autocomplete="off">
+                <input type="hidden" name="action" value="find_student">
+
+                <div class="mb-4">
+                    <label for="student_identifier" class="form-label">Student ID, Email, or Name</label>
+                    <input type="text"
+                           class="form-control large-input"
+                           id="student_identifier"
+                           name="student_identifier"
+                           placeholder="e.g., john.doe@school.edu or John Doe"
+                           autocomplete="off"
+                           required
+                           autofocus>
+                    <small class="form-text text-muted">Press Enter or click Next</small>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-arrow-right"></i> Next
+                    </button>
+                </div>
+            </form>
+
+            <div class="action-buttons text-center">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x"></i> Cancel
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Create Student (if not found) -->
+    {% elif step == 'create_student' %}
+    <div class="step-indicator">
+        <i class="bi bi-person-plus"></i> Create Student
+    </div>
+
+    <div class="card shadow-lg border-warning">
+        <div class="card-body p-5">
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> Student "{{ identifier }}" not found in the system.
+            </div>
+
+            <h4 class="text-center mb-4">Create New Student</h4>
+            <form method="POST" autocomplete="off">
+                <input type="hidden" name="action" value="create_student">
+
+                <div class="mb-3">
+                    <label for="student_name" class="form-label">Full Name <span class="text-danger">*</span></label>
+                    <input type="text"
+                           class="form-control"
+                           id="student_name"
+                           name="student_name"
+                           value="{{ identifier if '@' not in identifier else '' }}"
+                           required
+                           autofocus>
+                </div>
+
+                <div class="mb-3">
+                    <label for="student_email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                    <input type="email"
+                           class="form-control"
+                           id="student_email"
+                           name="student_email"
+                           value="{{ identifier if '@' in identifier else '' }}"
+                           required>
+                    <small class="form-text text-muted">Default password will be: changeme123</small>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="bi bi-person-plus"></i> Create Student & Continue
+                    </button>
+                </div>
+            </form>
+
+            <div class="action-buttons text-center">
+                <a href="{{ url_for('checkouts.fast_checkout') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-danger">
+                    <i class="bi bi-x"></i> Cancel
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Screen -->
+    {% elif step == 'confirmation' %}
+    <div class="step-indicator">
+        <i class="bi bi-check-circle-fill text-success"></i> Deployed!
+    </div>
+
+    <div class="card shadow-lg border-success">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                <h3 class="text-success mt-3">Device Deployed Successfully!</h3>
+            </div>
+
+            {% if last_deployment %}
+            <div class="card bg-light mb-4">
+                <div class="card-body">
+                    <h5 class="mb-3"><i class="bi bi-person-check"></i> Student Information</h5>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted"><strong>Full Name:</strong></div>
+                        <div class="col-8">{{ last_deployment.student_name }}</div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted"><strong>Email:</strong></div>
+                        <div class="col-8">{{ last_deployment.student_email }}</div>
+                    </div>
+                    <hr>
+                    <h5 class="mb-3"><i class="bi bi-laptop"></i> Device Information</h5>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted"><strong>Asset Tag:</strong></div>
+                        <div class="col-8"><span class="badge bg-primary">{{ last_deployment.asset_tag }}</span></div>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-4 text-muted"><strong>Device:</strong></div>
+                        <div class="col-8">{{ last_deployment.asset_name }}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-4 text-muted"><strong>Status:</strong></div>
+                        <div class="col-8"><span class="badge bg-info">Deployed</span></div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="d-grid gap-2">
+                <a href="{{ url_for('checkouts.fast_checkout') }}" class="btn btn-success btn-lg">
+                    <i class="bi bi-arrow-repeat"></i> Next Student
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-check-lg"></i> Finish & Exit
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Asset Selection -->
+    {% elif step == 'asset' %}
+    <div class="step-indicator">
+        <i class="bi bi-laptop"></i> Step 2: Device
+    </div>
+
+    <div class="card shadow-lg border-success">
+        <div class="card-body p-5">
+            {% if student_info %}
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> <strong>Student:</strong> {{ student_info.name }} ({{ student_info.email }})
+            </div>
+            {% endif %}
+
+            <h4 class="text-center mb-4">Scan or Enter Device</h4>
+            <form method="POST" autocomplete="off">
+                <input type="hidden" name="action" value="checkout_asset">
+
+                <div class="mb-4">
+                    <label for="asset_identifier" class="form-label">Asset Tag or Serial Number</label>
+                    <input type="text"
+                           class="form-control large-input"
+                           id="asset_identifier"
+                           name="asset_identifier"
+                           placeholder="Scan barcode or type asset tag"
+                           autocomplete="off"
+                           required
+                           autofocus>
+                    <small class="form-text text-muted">Press Enter to deploy</small>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="bi bi-check-circle"></i> Deploy Device
+                    </button>
+                </div>
+            </form>
+
+            <div class="action-buttons text-center">
+                <a href="{{ url_for('checkouts.fast_checkout') }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Different Student
+                </a>
+                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-danger">
+                    <i class="bi bi-x"></i> Exit
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Help Section -->
+    <div class="card mt-4 bg-light">
+        <div class="card-body">
+            <h6><i class="bi bi-info-circle"></i> Quick Tips</h6>
+            <ul class="mb-0 small">
+                <li><strong>Barcode Scanner:</strong> Scan student ID or device barcode for instant entry</li>
+                <li><strong>Keyboard:</strong> Use Tab and Enter for quick navigation</li>
+                <li><strong>Status:</strong> Devices are marked as "deployed" (long-term checkout)</li>
+                <li><strong>New Students:</strong> Created students get default password: changeme123</li>
+                <li><strong>Duration:</strong> Deployments are set for 365 days (1 school year)</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-submit on scan (assumes barcode scanner sends Enter key)
+    document.addEventListener('DOMContentLoaded', function() {
+        const inputs = document.querySelectorAll('.large-input');
+        inputs.forEach(input => {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.form.submit();
+                }
+            });
+        });
+
+        // Play success sound on deployment (optional)
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('deployed') === 'true') {
+            // Could add a success sound here
+            console.log('Device deployed successfully!');
+        }
+    });
+</script>
+{% endblock %}

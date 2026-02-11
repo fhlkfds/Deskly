@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Check In Asset - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-box-arrow-in-left"></i> Check In Asset</h2>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <i class="bi bi-x"></i> Cancel
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-4">
+                        <label for="asset_id" class="form-label">Select Asset <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-lg" id="asset_id" name="asset_id" required onchange="updateAssetInfo()">
+                            <option value="">-- Select a checked out asset --</option>
+                            {% for asset in assets %}
+                            <option value="{{ asset.id }}"
+                                    data-checkout-to="{{ asset.current_checkout.checked_out_to if asset.current_checkout else '' }}"
+                                    data-checkout-date="{{ asset.current_checkout.checkout_date.strftime('%Y-%m-%d') if asset.current_checkout else '' }}"
+                                    {% if request.args.get('asset_id') == asset.id|string %}selected{% endif %}>
+                                {{ asset.asset_tag }} - {{ asset.name }}
+                                {% if asset.current_checkout %}
+                                (To: {{ asset.current_checkout.checked_out_to }})
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% if not assets %}
+                        <div class="alert alert-info mt-2">
+                            No assets are currently checked out.
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div id="checkout-info" class="alert alert-light" style="display: none;">
+                        <h6>Current Checkout Information:</h6>
+                        <p class="mb-1"><strong>Checked out to:</strong> <span id="info-checkout-to"></span></p>
+                        <p class="mb-0"><strong>Checkout date:</strong> <span id="info-checkout-date"></span></p>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="checkin_condition" class="form-label">Asset Condition <span class="text-danger">*</span></label>
+                        <select class="form-select" id="checkin_condition" name="checkin_condition" required>
+                            <option value="good">Good - No issues</option>
+                            <option value="fair">Fair - Minor wear and tear</option>
+                            <option value="needs_repair">Needs Repair - Requires maintenance</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="checkin_notes" class="form-label">Check-in Notes</label>
+                        <textarea class="form-control" id="checkin_notes" name="checkin_notes" rows="3"
+                                  placeholder="Any issues, damages, or notes about the asset condition..."></textarea>
+                        <small class="form-text text-muted">Optional: Add any relevant notes about the asset's condition</small>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> The asset status will automatically be updated to "Available" and the checkout record will be completed.
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success btn-lg" {% if not assets %}disabled{% endif %}>
+                            <i class="bi bi-check-circle"></i> Check In Asset
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Checked Out Assets Summary -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Checked Out Assets</h5>
+            </div>
+            <div class="card-body">
+                {% if assets %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Asset Tag</th>
+                                <th>Name</th>
+                                <th>Checked Out To</th>
+                                <th>Checkout Date</th>
+                                <th>Expected Return</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for asset in assets %}
+                            <tr>
+                                <td><strong>{{ asset.asset_tag }}</strong></td>
+                                <td>{{ asset.name }}</td>
+                                <td>{{ asset.current_checkout.checked_out_to if asset.current_checkout else '-' }}</td>
+                                <td>{{ asset.current_checkout.checkout_date.strftime('%Y-%m-%d') if asset.current_checkout else '-' }}</td>
+                                <td>
+                                    {% if asset.current_checkout and asset.current_checkout.expected_return_date %}
+                                    {{ asset.current_checkout.expected_return_date.strftime('%Y-%m-%d') }}
+                                    {% if asset.current_checkout.is_overdue %}
+                                    <span class="badge bg-danger">OVERDUE</span>
+                                    {% endif %}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No assets currently checked out.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateAssetInfo() {
+    const select = document.getElementById('asset_id');
+    const selectedOption = select.options[select.selectedIndex];
+    const infoDiv = document.getElementById('checkout-info');
+
+    if (selectedOption.value) {
+        document.getElementById('info-checkout-to').textContent = selectedOption.getAttribute('data-checkout-to') || '-';
+        document.getElementById('info-checkout-date').textContent = selectedOption.getAttribute('data-checkout-date') || '-';
+        infoDiv.style.display = 'block';
+    } else {
+        infoDiv.style.display = 'none';
+    }
+}
+
+// Initialize on page load if asset is pre-selected
+document.addEventListener('DOMContentLoaded', function() {
+    updateAssetInfo();
+});
+</script>
+{% endblock %}

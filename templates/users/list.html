@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Users - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-people"></i> Users</h2>
+        <p class="text-muted">Manage system users and permissions</p>
+    </div>
+    <div class="col text-end">
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('users.create') }}" class="btn btn-primary">
+            <i class="bi bi-person-plus"></i> Add User
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('users.list_users') }}" class="row g-3">
+            <div class="col-md-6">
+                <label for="search" class="form-label">Search Users</label>
+                <input type="text"
+                       class="form-control"
+                       id="search"
+                       name="q"
+                       placeholder="Search by name or email..."
+                       value="{{ search_query }}">
+            </div>
+            <div class="col-md-4">
+                <label for="role" class="form-label">Role</label>
+                <select class="form-select" id="role" name="role">
+                    <option value="all" {% if role_filter == 'all' %}selected{% endif %}>All Roles</option>
+                    <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>Admin</option>
+                    <option value="staff" {% if role_filter == 'staff' %}selected{% endif %}>Staff</option>
+                    <option value="teacher" {% if role_filter == 'teacher' %}selected{% endif %}>Teacher</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- User Count -->
+<div class="alert alert-info">
+    <i class="bi bi-info-circle"></i> Showing {{ users|length }} of {{ pagination.total }} users
+</div>
+
+<!-- Users Table -->
+<div class="card">
+    <div class="card-body">
+        {% if users %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>
+                            <i class="bi bi-person-circle"></i>
+                            <a href="{{ url_for('users.detail', user_id=user.id) }}">
+                                {{ user.name }}
+                            </a>
+                            {% if user.id == current_user.id %}
+                            <span class="badge bg-primary">You</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <i class="bi bi-envelope"></i> {{ user.email }}
+                        </td>
+                        <td>
+                            {% if user.role == 'admin' %}
+                            <span class="badge bg-danger">Admin</span>
+                            {% elif user.role == 'staff' %}
+                            <span class="badge bg-warning">Staff</span>
+                            {% else %}
+                            <span class="badge bg-info">Teacher</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ user.created_at.strftime('%Y-%m-%d') }}</small>
+                        </td>
+                        <td>
+                            <a href="{{ url_for('users.detail', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                            {% if current_user.role == 'admin' %}
+                            <a href="{{ url_for('users.edit', user_id=user.id) }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i> Edit
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if pagination.pages > 1 %}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('users.list_users', page=pagination.prev_num, role=role_filter, q=search_query) }}">Previous</a>
+                </li>
+                {% endif %}
+
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == pagination.page %}
+                        <li class="page-item active"><a class="page-link" href="#">{{ page_num }}</a></li>
+                        {% else %}
+                        <li class="page-item"><a class="page-link" href="{{ url_for('users.list_users', page=page_num, role=role_filter, q=search_query) }}">{{ page_num }}</a></li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('users.list_users', page=pagination.next_num, role=role_filter, q=search_query) }}">Next</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-people" style="font-size: 4rem; color: #ccc;"></i>
+            <p class="text-muted mt-3">No users found</p>
+            {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('users.create') }}" class="btn btn-primary">
+                <i class="bi bi-person-plus"></i> Add First User
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Role Information -->
+<div class="card mt-4 bg-light">
+    <div class="card-body">
+        <h6><i class="bi bi-info-circle"></i> User Roles</h6>
+        <ul class="mb-0 small">
+            <li><strong>Admin:</strong> Full access to all features including user management, settings, and sync configuration</li>
+            <li><strong>Staff:</strong> Can manage assets, perform checkouts/check-ins, and view reports</li>
+            <li><strong>Teacher:</strong> Can view assets, perform checkouts/check-ins for their own use</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

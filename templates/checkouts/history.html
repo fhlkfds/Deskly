@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Checkout History - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2>Checkout History</h2>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('checkouts.history') }}" class="row g-3">
+            <div class="col-md-3">
+                <label for="status" class="form-label">Status Filter</label>
+                <select class="form-select" id="status" name="status" onchange="this.form.submit()">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Checkouts</option>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active Only</option>
+                    <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed Only</option>
+                </select>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Checkout History Table -->
+<div class="card">
+    <div class="card-body">
+        {% if checkouts %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Asset</th>
+                        <th>Checked Out To</th>
+                        <th>Checkout Date</th>
+                        <th>Expected Return</th>
+                        <th>Checked In</th>
+                        <th>Condition</th>
+                        <th>By</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for checkout in checkouts %}
+                    <tr {% if checkout.is_active %}class="table-warning"{% endif %}>
+                        <td>
+                            <a href="{{ url_for('assets.detail', asset_id=checkout.asset.id) }}">
+                                <strong>{{ checkout.asset.asset_tag }}</strong><br>
+                                <small>{{ checkout.asset.name }}</small>
+                            </a>
+                        </td>
+                        <td>{{ checkout.checked_out_to }}</td>
+                        <td>{{ checkout.checkout_date.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            {% if checkout.expected_return_date %}
+                            {{ checkout.expected_return_date.strftime('%Y-%m-%d') }}
+                            {% if checkout.is_overdue %}
+                            <br><span class="badge bg-danger">OVERDUE</span>
+                            {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if checkout.checked_in_date %}
+                            {{ checkout.checked_in_date.strftime('%Y-%m-%d %H:%M') }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if checkout.checkin_condition %}
+                            {% if checkout.checkin_condition == 'good' %}
+                            <span class="badge bg-success">Good</span>
+                            {% elif checkout.checkin_condition == 'fair' %}
+                            <span class="badge bg-warning text-dark">Fair</span>
+                            {% else %}
+                            <span class="badge bg-danger">Needs Repair</span>
+                            {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small>{{ checkout.user.name }}</small>
+                        </td>
+                        <td>
+                            {% if checkout.is_active %}
+                            <span class="badge bg-warning text-dark">Active</span>
+                            {% else %}
+                            <span class="badge bg-success">Completed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if checkout.checkin_notes %}
+                    <tr>
+                        <td colspan="8" class="bg-light">
+                            <small><strong>Notes:</strong> {{ checkout.checkin_notes }}</small>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if pagination.pages > 1 %}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mt-3">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('checkouts.history', page=pagination.prev_num, status=status_filter) }}">Previous</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('checkouts.history', page=page_num, status=status_filter) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('checkouts.history', page=pagination.next_num, status=status_filter) }}">Next</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <p class="text-muted text-center">No checkout records found.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

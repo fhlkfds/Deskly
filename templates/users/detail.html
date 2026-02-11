@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}{{ user.name }} - Users - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('users.list_users') }}">Users</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ user.name }}</li>
+            </ol>
+        </nav>
+    </div>
+    <div class="col text-end">
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('users.edit', user_id=user.id) }}" class="btn btn-outline-primary">
+            <i class="bi bi-pencil"></i> Edit
+        </a>
+        {% if user.id != current_user.id %}
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal">
+            <i class="bi bi-trash"></i> Delete
+        </button>
+        {% endif %}
+        {% endif %}
+        <a href="{{ url_for('users.list_users') }}" class="btn btn-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Users
+        </a>
+    </div>
+</div>
+
+<!-- User Information Card -->
+<div class="row">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-person-circle"></i> User Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <i class="bi bi-person-circle" style="font-size: 5rem; color: #0d6efd;"></i>
+                    {% if user.id == current_user.id %}
+                    <br><span class="badge bg-primary mt-2">Current User</span>
+                    {% endif %}
+                </div>
+
+                <table class="table table-sm">
+                    <tr>
+                        <th>Name:</th>
+                        <td>{{ user.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Email:</th>
+                        <td>{{ user.email }}</td>
+                    </tr>
+                    <tr>
+                        <th>Role:</th>
+                        <td>
+                            {% if user.role == 'admin' %}
+                            <span class="badge bg-danger">Admin</span>
+                            {% elif user.role == 'staff' %}
+                            <span class="badge bg-warning">Staff</span>
+                            {% else %}
+                            <span class="badge bg-info">Teacher</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Created:</th>
+                        <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    <tr>
+                        <th>User ID:</th>
+                        <td>#{{ user.id }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Card -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Checkout Activity</h5>
+            </div>
+            <div class="card-body">
+                {% if checkouts_performed %}
+                <p class="text-muted">Checkouts performed by {{ user.name }} (showing last 10)</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Checked Out To</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for checkout in checkouts_performed %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('assets.detail', asset_id=checkout.asset.id) }}">
+                                        {{ checkout.asset.asset_tag }} - {{ checkout.asset.name }}
+                                    </a>
+                                </td>
+                                <td>{{ checkout.checked_out_to }}</td>
+                                <td>
+                                    <small>{{ checkout.checkout_date.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </td>
+                                <td>
+                                    {% if checkout.is_active %}
+                                    <span class="badge bg-warning">Active</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Returned</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <a href="{{ url_for('checkouts.history') }}?user_id={{ user.id }}" class="btn btn-sm btn-outline-primary">
+                    View All Activity <i class="bi bi-arrow-right"></i>
+                </a>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                    <p class="text-muted mt-2">No checkout activity yet</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Permissions Card -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-shield-check"></i> Permissions</h5>
+            </div>
+            <div class="card-body">
+                {% if user.role == 'admin' %}
+                <ul class="list-unstyled mb-0">
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Manage assets (create, edit, delete)</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Perform checkouts and check-ins</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Manage users (create, edit, delete)</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Configure Google Sheets sync</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> View all reports and history</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Access all system settings</li>
+                </ul>
+                {% elif user.role == 'staff' %}
+                <ul class="list-unstyled mb-0">
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Manage assets (create, edit, delete)</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Perform checkouts and check-ins</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Manage users</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Configure Google Sheets sync</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> View all reports and history</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Access system settings</li>
+                </ul>
+                {% else %}
+                <ul class="list-unstyled mb-0">
+                    <li><i class="bi bi-check-circle-fill text-success"></i> View assets</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> Perform checkouts and check-ins</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Manage users</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Configure Google Sheets sync</li>
+                    <li><i class="bi bi-check-circle-fill text-success"></i> View own checkout history</li>
+                    <li><i class="bi bi-x-circle-fill text-danger"></i> Access system settings</li>
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete user <strong>{{ user.name }}</strong>?
+                <br><br>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> This action cannot be undone. If this user has checkout history, the delete will be prevented.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form method="POST" action="{{ url_for('users.delete', user_id=user.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Delete User</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

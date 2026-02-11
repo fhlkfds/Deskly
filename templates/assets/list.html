@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Assets - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2>Assets</h2>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('assets.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Asset
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('assets.list_assets') }}" class="row g-3">
+            <div class="col-md-3">
+                <label for="search" class="form-label">Search</label>
+                <input type="text" class="form-control" id="search" name="search"
+                       placeholder="Asset tag, name, serial..." value="{{ current_search }}">
+            </div>
+            <div class="col-md-3">
+                <label for="category" class="form-label">Category</label>
+                <select class="form-select" id="category" name="category">
+                    <option value="">All Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {% if cat == current_category %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="type" class="form-label">Type</label>
+                <select class="form-select" id="type" name="type">
+                    <option value="">All Types</option>
+                    {% for t in types %}
+                    <option value="{{ t }}" {% if t == current_type %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">All Statuses</option>
+                    {% for stat in statuses %}
+                    <option value="{{ stat }}" {% if stat == current_status %}selected{% endif %}>{{ stat|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Assets Table -->
+<div class="card">
+    <div class="card-body">
+        {% if assets %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Asset Tag</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Condition</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for asset in assets %}
+                    <tr>
+                        <td><strong>{{ asset.asset_tag }}</strong></td>
+                        <td>{{ asset.name }}</td>
+                        <td><span class="badge bg-info">{{ asset.type }}</span></td>
+                        <td>{{ asset.location or '-' }}</td>
+                        <td>
+                            {% if asset.status == 'available' %}
+                            <span class="badge bg-success">Available</span>
+                            {% elif asset.status == 'checked_out' %}
+                            <span class="badge bg-warning text-dark">Checked Out</span>
+                            {% elif asset.status == 'maintenance' %}
+                            <span class="badge bg-danger">Maintenance</span>
+                            {% elif asset.status == 'retired' %}
+                            <span class="badge bg-secondary">Retired</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if asset.condition == 'good' %}
+                            <span class="badge bg-success">Good</span>
+                            {% elif asset.condition == 'fair' %}
+                            <span class="badge bg-warning text-dark">Fair</span>
+                            {% else %}
+                            <span class="badge bg-danger">Needs Repair</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('assets.detail', asset_id=asset.id) }}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                            <a href="{{ url_for('assets.edit', asset_id=asset.id) }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if pagination.pages > 1 %}
+        <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center mt-3">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('assets.list_assets', page=pagination.prev_num, category=current_category, status=current_status, type=current_type, search=current_search) }}">Previous</a>
+                </li>
+                {% for page_num in pagination.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+                    {% if page_num %}
+                        <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('assets.list_assets', page=page_num, category=current_category, status=current_status, type=current_type, search=current_search) }}">{{ page_num }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('assets.list_assets', page=pagination.next_num, category=current_category, status=current_status, type=current_type, search=current_search) }}">Next</a>
+                </li>
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <p class="text-muted text-center">No assets found. <a href="{{ url_for('assets.create') }}">Create one</a>?</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

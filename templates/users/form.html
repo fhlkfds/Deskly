@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}{% if user %}Edit User{% else %}Create User{% endif %} - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('users.list_users') }}">Users</a></li>
+                {% if user %}
+                <li class="breadcrumb-item"><a href="{{ url_for('users.detail', user_id=user.id) }}">{{ user.name }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit</li>
+                {% else %}
+                <li class="breadcrumb-item active" aria-current="page">Create</li>
+                {% endif %}
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    {% if user %}
+                    <i class="bi bi-pencil"></i> Edit User: {{ user.name }}
+                    {% else %}
+                    <i class="bi bi-person-plus"></i> Create New User
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" autocomplete="off">
+                    <!-- Name -->
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Full Name <span class="text-danger">*</span></label>
+                        <input type="text"
+                               class="form-control"
+                               id="name"
+                               name="name"
+                               value="{{ user.name if user else '' }}"
+                               required
+                               autofocus>
+                        <small class="form-text text-muted">First and last name</small>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                        <input type="email"
+                               class="form-control"
+                               id="email"
+                               name="email"
+                               value="{{ user.email if user else '' }}"
+                               required>
+                        <small class="form-text text-muted">Used for login and notifications</small>
+                    </div>
+
+                    <!-- Role -->
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role <span class="text-danger">*</span></label>
+                        <select class="form-select" id="role" name="role" required>
+                            <option value="teacher" {% if user and user.role == 'teacher' %}selected{% endif %}>Teacher</option>
+                            <option value="staff" {% if user and user.role == 'staff' %}selected{% endif %}>Staff</option>
+                            <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>Admin</option>
+                        </select>
+                        <small class="form-text text-muted">
+                            Determines user permissions - Admin has full access, Staff can manage assets, Teacher has limited access
+                        </small>
+                    </div>
+
+                    <!-- Password -->
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            Password
+                            {% if not user %}<span class="text-danger">*</span>{% endif %}
+                        </label>
+                        <input type="password"
+                               class="form-control"
+                               id="password"
+                               name="password"
+                               {% if not user %}required{% endif %}
+                               autocomplete="new-password">
+                        <small class="form-text text-muted">
+                            {% if user %}
+                            Leave blank to keep current password
+                            {% else %}
+                            Minimum 6 characters recommended
+                            {% endif %}
+                        </small>
+                    </div>
+
+                    {% if not user %}
+                    <!-- Password Confirmation for New Users -->
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>New User Setup:</strong> The user will receive their login credentials.
+                        They should change their password on first login.
+                    </div>
+                    {% endif %}
+
+                    <!-- Buttons -->
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% if user %}{{ url_for('users.detail', user_id=user.id) }}{% else %}{{ url_for('users.list_users') }}{% endif %}"
+                           class="btn btn-secondary">
+                            <i class="bi bi-x"></i> Cancel
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            {% if user %}
+                            <i class="bi bi-check-circle"></i> Update User
+                            {% else %}
+                            <i class="bi bi-person-plus"></i> Create User
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Help Card -->
+        <div class="card mt-3 bg-light">
+            <div class="card-body">
+                <h6><i class="bi bi-info-circle"></i> User Role Permissions</h6>
+                <div class="row">
+                    <div class="col-md-4">
+                        <strong><span class="badge bg-info">Teacher</span></strong>
+                        <ul class="small mt-2">
+                            <li>View assets</li>
+                            <li>Checkout/check-in</li>
+                            <li>View own history</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <strong><span class="badge bg-warning">Staff</span></strong>
+                        <ul class="small mt-2">
+                            <li>All Teacher permissions</li>
+                            <li>Manage assets</li>
+                            <li>View all history</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <strong><span class="badge bg-danger">Admin</span></strong>
+                        <ul class="small mt-2">
+                            <li>All Staff permissions</li>
+                            <li>Manage users</li>
+                            <li>System settings</li>
+                            <li>Google Sheets sync</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
