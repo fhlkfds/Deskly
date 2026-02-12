@@ -34,6 +34,25 @@ cp .env.example .env
 python app.py
 ```
 
+### Option 3: Docker Deployment
+
+```bash
+# 1. Create environment file
+cp .env.example .env
+
+# 2. Build and run
+docker compose up -d --build
+
+# 3. Open app
+# http://localhost:5000
+```
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
 ## First Steps
 
 1. **Access the application**:
@@ -90,6 +109,9 @@ If you want to sync with Google Sheets, follow these steps:
 
 ```
 inventory/
+├── Dockerfile          # Container build
+├── docker-compose.yml  # Container runtime
+├── docker-entrypoint.sh
 ├── app.py              # Main application
 ├── models.py           # Database models
 ├── auth.py            # Authentication

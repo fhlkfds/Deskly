@@ -72,6 +72,52 @@ A comprehensive inventory management system for K-12 schools, built with Flask. 
 7. **Access the application**:
    Open your browser and navigate to `http://localhost:5000`
 
+## Docker Deployment
+
+### Option 1: Docker Compose (recommended)
+
+1. Create your env file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Build and start:
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. Open:
+   - `http://localhost:5000`
+
+4. Stop:
+   ```bash
+   docker compose down
+   ```
+
+### Option 2: Docker CLI
+
+1. Build:
+   ```bash
+   docker build -t deskly:latest .
+   ```
+
+2. Run:
+   ```bash
+   docker run -d \
+     --name deskly \
+     -p 5000:5000 \
+     -e SECRET_KEY=change-me \
+     -e DATABASE_URL=sqlite:///database.db \
+     -v deskly_instance:/app/instance \
+     deskly:latest
+   ```
+
+### Notes
+
+- The container initializes DB tables and default users on startup.
+- SQLite data is persisted in the `/app/instance` volume.
+- If you use Google sync, provide credentials in the container path expected by your env config.
+
 ## Default Login Credentials
 
 After first run, use these credentials to log in:
@@ -207,6 +253,9 @@ The system automatically syncs with Google Sheets every 5 minutes (configurable)
 inventory/
 ├── app.py                      # Main Flask application
 ├── config.py                   # Configuration settings
+├── Dockerfile                  # Container image build
+├── docker-compose.yml          # Local container deployment
+├── docker-entrypoint.sh        # Container startup script
 ├── requirements.txt            # Python dependencies
 ├── .env                        # Environment variables (create from .env.example)
 ├── models.py                   # Database models
