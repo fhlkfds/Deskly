@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Branding Settings - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-palette"></i> Branding</h2>
+        <p class="text-muted mb-0">Customize app name, icons, and color scheme.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Branding Settings</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('settings.update_branding') }}" enctype="multipart/form-data">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="branding_app_name" class="form-label">App Name</label>
+                    <input type="text" class="form-control" id="branding_app_name" name="branding_app_name"
+                           value="{{ branding_app_name }}" placeholder="School Inventory">
+                </div>
+                <div class="col-md-6">
+                    <label for="branding_favicon_url" class="form-label">Tab Icon (Favicon URL)</label>
+                    <input type="text" class="form-control" id="branding_favicon_url" name="branding_favicon_url"
+                           value="{{ branding_favicon_url }}" placeholder="https://example.com/favicon.ico">
+                </div>
+                <div class="col-md-6">
+                    <label for="branding_favicon_file" class="form-label">Tab Icon (Upload File)</label>
+                    <input type="file" class="form-control" id="branding_favicon_file" name="branding_favicon_file"
+                           accept=".png,.jpg,.jpeg,.svg,.ico">
+                    <small class="text-muted">PNG/JPG/SVG/ICO. Recommended: 32x32 or 48x48.</small>
+                </div>
+                <div class="col-md-6">
+                    <label for="branding_app_icon_url" class="form-label">App Icon (Navbar URL)</label>
+                    <input type="text" class="form-control" id="branding_app_icon_url" name="branding_app_icon_url"
+                           value="{{ branding_app_icon_url }}" placeholder="https://example.com/logo.png">
+                </div>
+                <div class="col-md-6">
+                    <label for="branding_app_icon_file" class="form-label">App Icon (Upload File)</label>
+                    <input type="file" class="form-control" id="branding_app_icon_file" name="branding_app_icon_file"
+                           accept=".png,.jpg,.jpeg,.svg,.ico">
+                    <small class="text-muted">PNG/JPG/SVG/ICO. Recommended: 24x24 or 32x32.</small>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="branding_primary_color" class="form-label">Primary Color (Hex)</label>
+                    <input type="text" class="form-control" id="branding_primary_color" name="branding_primary_color"
+                           value="{{ branding_primary_color }}" placeholder="#0d6efd">
+                </div>
+                <div class="col-md-4">
+                    <label for="branding_secondary_color" class="form-label">Secondary Color (Hex)</label>
+                    <input type="text" class="form-control" id="branding_secondary_color" name="branding_secondary_color"
+                           value="{{ branding_secondary_color }}" placeholder="#6c757d">
+                </div>
+                <div class="col-md-4">
+                    <label for="branding_accent_color" class="form-label">Accent Color (Hex)</label>
+                    <input type="text" class="form-control" id="branding_accent_color" name="branding_accent_color"
+                           value="{{ branding_accent_color }}" placeholder="#198754">
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save Branding
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

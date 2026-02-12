@@ -1,18 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}Google Sheets Sync Settings - School Inventory System{% endblock %}
+{% block title %}Sync Settings - School Inventory System{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
     <div class="col">
-        <h2><i class="bi bi-cloud-arrow-up-down"></i> Google Sheets Sync Settings</h2>
+        <h2><i class="bi bi-cloud-arrow-up-down"></i> Sync Settings</h2>
+        <p class="text-muted mb-0">Google Sheets and Google Admin sync configuration.</p>
     </div>
 </div>
 
-<!-- Configuration -->
+<!-- Google Sheets Sync -->
 <div class="card mb-4">
     <div class="card-header">
-        <h5 class="mb-0">Configuration</h5>
+        <h5 class="mb-0">Google Sheets Sync</h5>
     </div>
     <div class="card-body">
         <div class="row mb-3">
@@ -40,15 +41,7 @@
                 <li>Set the <code>GOOGLE_SHEETS_SPREADSHEET_ID</code> in your <code>.env</code> file</li>
             </ol>
         </div>
-    </div>
-</div>
 
-<!-- Sync Actions -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0">Sync Actions</h5>
-    </div>
-    <div class="card-body">
         <div class="row g-3">
             <div class="col-md-4">
                 <div class="card">
@@ -115,7 +108,7 @@
 <!-- Google Admin User Sync -->
 <div class="card mb-4">
     <div class="card-header">
-        <h5 class="mb-0">Google Admin User Sync</h5>
+        <h5 class="mb-0">Google Admin Sync</h5>
     </div>
     <div class="card-body">
         <div class="row mb-3">
@@ -333,150 +326,11 @@
     </div>
 </div>
 
-<!-- Google Admin Sync History -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0">Google Admin Sync History</h5>
-    </div>
-    <div class="card-body">
-        {% if google_admin_logs %}
-        <div class="table-responsive">
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Trigger</th>
-                        <th>Status</th>
-                        <th>Processed</th>
-                        <th>Created</th>
-                        <th>Updated</th>
-                        <th>Skipped</th>
-                        <th>Devices Processed</th>
-                        <th>Devices Updated</th>
-                        <th>Devices Skipped</th>
-                        <th>Message</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in google_admin_logs %}
-                    <tr>
-                        <td><small>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
-                        <td>{{ log.trigger_type }}</td>
-                        <td>
-                            {% if log.status == 'success' %}
-                            <span class="badge bg-success">Success</span>
-                            {% elif log.status == 'partial' %}
-                            <span class="badge bg-warning text-dark">Partial</span>
-                            {% else %}
-                            <span class="badge bg-danger">Failed</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ log.users_processed }}</td>
-                        <td>{{ log.users_created }}</td>
-                        <td>{{ log.users_updated }}</td>
-                        <td>{{ log.users_skipped }}</td>
-                        <td>{{ log.devices_processed }}</td>
-                        <td>{{ log.devices_updated }}</td>
-                        <td>{{ log.devices_skipped }}</td>
-                        <td><small>{{ (log.message or '')[:120] }}{% if log.message and log.message|length > 120 %}...{% endif %}</small></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-muted mb-0">No Google Admin sync history yet.</p>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Example Data -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h5 class="mb-0">Example Data</h5>
-    </div>
-    <div class="card-body">
-        <form method="POST" action="{{ url_for('settings.toggle_example_data') }}">
-            <div class="form-check form-switch mb-3">
-                <input class="form-check-input" type="checkbox" id="example_data_enabled" name="example_data_enabled"
-                       {% if demo_data_enabled %}checked{% endif %}>
-                <label class="form-check-label" for="example_data_enabled">
-                    Enable example data
-                </label>
-            </div>
-            <p class="text-muted mb-3">
-                Adds 15 users for each role, 15 assets for each asset type, and auto-checks out 5 asset types to 5 different demo users.
-                Also creates 5 demo folders, each with 5 subfolders and 5 markdown docs in each subfolder.
-                Turning this off removes demo users/assets.
-            </p>
-            <div class="mb-3">
-                <span class="badge bg-secondary">Demo Users: {{ demo_users_count }}</span>
-                <span class="badge bg-secondary">Demo Assets: {{ demo_assets_count }}</span>
-            </div>
-            <button type="submit" class="btn btn-primary">
-                <i class="bi bi-save"></i> Save Example Data Setting
-            </button>
-        </form>
-    </div>
-</div>
-
-<!-- Sync History -->
-<div class="card">
-    <div class="card-header">
-        <h5 class="mb-0">Recent Sync History</h5>
-    </div>
-    <div class="card-body">
-        {% if recent_logs %}
-        <div class="table-responsive">
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Records</th>
-                        <th>Errors</th>
-                        <th>Message</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for log in recent_logs %}
-                    <tr>
-                        <td><small>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
-                        <td><span class="badge bg-secondary">{{ log.sync_type }}</span></td>
-                        <td>
-                            {% if log.status == 'success' %}
-                            <span class="badge bg-success">Success</span>
-                            {% elif log.status == 'partial' %}
-                            <span class="badge bg-warning text-dark">Partial</span>
-                            {% else %}
-                            <span class="badge bg-danger">Failed</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ log.records_processed }}</td>
-                        <td>
-                            {% if log.errors_count > 0 %}
-                            <span class="text-danger">{{ log.errors_count }}</span>
-                            {% else %}
-                            0
-                            {% endif %}
-                        </td>
-                        <td><small>{{ log.message[:100] }}{% if log.message|length > 100 %}...{% endif %}</small></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-muted text-center">No sync history yet. Run a sync to see logs here.</p>
-        {% endif %}
-    </div>
-</div>
-
-<!-- Test Connection Result Modal -->
 <div id="test-result" class="alert mt-3" style="display: none;"></div>
 <div id="test-google-admin-result" class="alert mt-3" style="display: none;"></div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
 document.getElementById('test-connection-btn').addEventListener('click', function() {
     const btn = this;

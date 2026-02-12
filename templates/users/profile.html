@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-person-circle"></i> Profile</h2>
+        <p class="text-muted mb-0">Update your account details.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" autocomplete="off">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Full Name</label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ user.name }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username (Optional)</label>
+                        <input type="text" class="form-control" id="username" name="username" value="{{ user.username or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="profile_picture_url" class="form-label">Profile Picture URL</label>
+                        <input type="text" class="form-control" id="profile_picture_url" name="profile_picture_url"
+                               value="{{ user.profile_picture_url or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="default_theme" class="form-label">Default Theme</label>
+                        <select class="form-select" id="default_theme" name="default_theme">
+                            <option value="light" {% if user.default_theme == 'light' %}selected{% endif %}>Light</option>
+                            <option value="dark" {% if user.default_theme == 'dark' %}selected{% endif %}>Dark</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="password" name="password" autocomplete="new-password">
+                        <small class="text-muted">Leave blank to keep your current password.</small>
+                    </div>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

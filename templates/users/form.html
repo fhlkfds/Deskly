@@ -40,7 +40,7 @@
                                class="form-control"
                                id="name"
                                name="name"
-                               value="{{ user.name if user else '' }}"
+                               value="{{ user.name if user else (prefill.name if prefill else '') }}"
                                required
                                autofocus>
                         <small class="form-text text-muted">First and last name</small>
@@ -53,20 +53,31 @@
                                class="form-control"
                                id="email"
                                name="email"
-                               value="{{ user.email if user else '' }}"
+                               value="{{ user.email if user else (prefill.email if prefill else '') }}"
                                required>
                         <small class="form-text text-muted">Used for login and notifications</small>
+                    </div>
+
+                    <!-- Username -->
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username (Optional)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="username"
+                               name="username"
+                               value="{{ user.username if user else (prefill.username if prefill else '') }}">
+                        <small class="form-text text-muted">Optional handle for internal reference</small>
                     </div>
 
                     <!-- Role -->
                     <div class="mb-3">
                         <label for="role" class="form-label">Role <span class="text-danger">*</span></label>
                         <select class="form-select" id="role" name="role" required>
-                            <option value="student" {% if user and user.role == 'student' %}selected{% endif %}>Student</option>
-                            <option value="teacher" {% if user and user.role == 'teacher' %}selected{% endif %}>Teacher</option>
-                            <option value="staff" {% if user and user.role == 'staff' %}selected{% endif %}>Staff</option>
-                            <option value="helpdesk" {% if user and user.role == 'helpdesk' %}selected{% endif %}>Help Desk</option>
-                            <option value="admin" {% if user and user.role == 'admin' %}selected{% endif %}>Admin</option>
+                            <option value="student" {% if user and user.role == 'student' %}selected{% elif not user and prefill and prefill.role == 'student' %}selected{% endif %}>Student</option>
+                            <option value="teacher" {% if user and user.role == 'teacher' %}selected{% elif not user and prefill and prefill.role == 'teacher' %}selected{% endif %}>Teacher</option>
+                            <option value="staff" {% if user and user.role == 'staff' %}selected{% elif not user and prefill and prefill.role == 'staff' %}selected{% endif %}>Staff</option>
+                            <option value="helpdesk" {% if user and user.role == 'helpdesk' %}selected{% elif not user and prefill and prefill.role == 'helpdesk' %}selected{% endif %}>Help Desk</option>
+                            <option value="admin" {% if user and user.role == 'admin' %}selected{% elif not user and prefill and prefill.role == 'admin' %}selected{% endif %}>Admin</option>
                         </select>
                         <small class="form-text text-muted">
                             Determines user permissions - Admin full access, Help Desk can checkout/in and add users, Staff view-only, Teacher/Student no access
@@ -80,7 +91,7 @@
                                class="form-control"
                                id="asset_tag"
                                name="asset_tag"
-                               value="{{ user.asset_tag if user else '' }}">
+                               value="{{ user.asset_tag if user else (prefill.asset_tag if prefill else '') }}">
                         <small class="form-text text-muted">Optional assigned device tag (often used for students)</small>
                     </div>
 
@@ -91,7 +102,7 @@
                                class="form-control"
                                id="grade_level"
                                name="grade_level"
-                               value="{{ user.grade_level if user else '' }}">
+                               value="{{ user.grade_level if user else (prefill.grade_level if prefill else '') }}">
                         <small class="form-text text-muted">Examples: K, 3, 7, 10, 12</small>
                     </div>
 
@@ -99,21 +110,38 @@
                     <div class="mb-3">
                         <label for="password" class="form-label">
                             Password
-                            {% if not user %}<span class="text-danger">*</span>{% endif %}
                         </label>
                         <input type="password"
                                class="form-control"
                                id="password"
                                name="password"
-                               {% if not user %}required{% endif %}
                                autocomplete="new-password">
                         <small class="form-text text-muted">
                             {% if user %}
                             Leave blank to keep current password
                             {% else %}
-                            Minimum 6 characters recommended
+                            Optional: Student/teacher accounts will not be able to log in
                             {% endif %}
                         </small>
+                    </div>
+
+                    <!-- Profile Picture -->
+                    <div class="mb-3">
+                        <label for="profile_picture_url" class="form-label">Profile Picture URL (Optional)</label>
+                        <input type="text"
+                               class="form-control"
+                               id="profile_picture_url"
+                               name="profile_picture_url"
+                               value="{{ user.profile_picture_url if user else (prefill.profile_picture_url if prefill else '') }}">
+                    </div>
+
+                    <!-- Default Theme -->
+                    <div class="mb-3">
+                        <label for="default_theme" class="form-label">Default Theme</label>
+                        <select class="form-select" id="default_theme" name="default_theme">
+                            <option value="light" {% if user and user.default_theme == 'light' %}selected{% elif not user and prefill and prefill.default_theme == 'light' %}selected{% endif %}>Light</option>
+                            <option value="dark" {% if user and user.default_theme == 'dark' %}selected{% elif not user and prefill and prefill.default_theme == 'dark' %}selected{% endif %}>Dark</option>
+                        </select>
                     </div>
 
                     {% if not user %}

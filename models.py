@@ -14,10 +14,13 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(60), unique=True, index=True)
     role = db.Column(db.String(20), nullable=False, default='staff')  # admin, staff, teacher, student, helpdesk
     asset_tag = db.Column(db.String(50), index=True)
     grade_level = db.Column(db.String(20))
     repeat_breakage_flag = db.Column(db.Boolean, nullable=False, default=False, index=True)
+    profile_picture_url = db.Column(db.Text)
+    default_theme = db.Column(db.String(10), default='light')
     password_hash = db.Column(db.String(256), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -60,12 +63,34 @@ class Asset(db.Model):
     condition = db.Column(db.String(20), default='good')  # good, fair, needs_repair
     repeat_breakage_flag = db.Column(db.Boolean, nullable=False, default=False, index=True)
     notes = db.Column(db.Text)
+    warranty_vendor = db.Column(db.String(120))
+    warranty_end_date = db.Column(db.Date)
+    warranty_notes = db.Column(db.Text)
+
+    software_name = db.Column(db.String(200))
+    license_key = db.Column(db.String(200))
+    license_seats = db.Column(db.Integer)
+    license_expires_on = db.Column(db.Date)
+    license_assigned_to = db.Column(db.String(200))
+
+    accessory_type = db.Column(db.String(120))
+    accessory_compatibility = db.Column(db.String(200))
+    accessory_notes = db.Column(db.Text)
+
+    toner_model = db.Column(db.String(200))
+    toner_compatible_printer = db.Column(db.String(200))
+    toner_quantity = db.Column(db.Integer)
+    toner_reorder_threshold = db.Column(db.Integer)
 
     # Google Sheets sync tracking
     google_sheets_row_id = db.Column(db.Integer)
     google_admin_device_ou_path = db.Column(db.String(255), index=True)
     google_admin_device_model = db.Column(db.String(120), index=True)
     device_group = db.Column(db.String(20), index=True)  # admin, helpdesk, staff, teacher, student
+    google_admin_last_user_email = db.Column(db.String(120), index=True)
+    google_admin_last_user_seen_at = db.Column(db.DateTime)
+    google_admin_recent_users_json = db.Column(db.Text)
+    google_admin_last_sync_at = db.Column(db.DateTime)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -107,6 +132,11 @@ ASSET_TYPES = [
     'Laptop',
     'Tablet',
     'Charger',
+    'Keyboard',
+    'Mouse',
+    'Headphones',
+    'Toner',
+    'Software License',
     'Projector',
     'Printer',
     'Smart Board',
@@ -345,6 +375,92 @@ class DocumentFile(db.Model):
         return f'<DocumentFile {self.id} {self.original_name}>'
 
 
+class Ticket(db.Model):
+    """Basic IT support ticket."""
+
+    __tablename__ = 'tickets'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_code = db.Column(db.String(20), unique=True, index=True)
+    subject = db.Column(db.String(200), nullable=False, index=True)
+    requester_email = db.Column(db.String(120), nullable=False, index=True)
+    requester_name = db.Column(db.String(120))
+    status = db.Column(db.String(20), nullable=False, default='open', index=True)
+    priority = db.Column(db.String(20), nullable=False, default='normal', index=True)
+    category = db.Column(db.String(50), index=True)
+    tags = db.Column(db.String(200))
+    source = db.Column(db.String(20), nullable=False, default='gmail', index=True)
+    gmail_message_id = db.Column(db.String(120), unique=True, index=True)
+    body_text = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_message_at = db.Column(db.DateTime)
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+
+    assignee = db.relationship('User')
+
+    def __repr__(self):
+        return f'<Ticket {self.id} {self.subject}>'
+
+
+class TicketComment(db.Model):
+    """Ticket comments and internal notes."""
+
+    __tablename__ = 'ticket_comments'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False, index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    body = db.Column(db.Text, nullable=False)
+    is_internal = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    ticket = db.relationship('Ticket', backref=db.backref('comments', lazy='dynamic'))
+    author = db.relationship('User')
+
+    def __repr__(self):
+        return f'<TicketComment {self.id} ticket={self.ticket_id} internal={self.is_internal}>'
+
+
+class TicketDocLink(db.Model):
+    """Link a ticket to a documentation article."""
+
+    __tablename__ = 'ticket_doc_links'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), nullable=False, index=True)
+    document_id = db.Column(db.Integer, db.ForeignKey('documents.id'), nullable=False, index=True)
+    linked_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    ticket = db.relationship('Ticket', backref=db.backref('doc_links', lazy='dynamic'))
+    document = db.relationship('Document')
+    linked_by = db.relationship('User')
+
+    def __repr__(self):
+        return f'<TicketDocLink {self.id} ticket={self.ticket_id} doc={self.document_id}>'
+
+
+class Notification(db.Model):
+    """In-app notification for users."""
+
+    __tablename__ = 'notifications'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    ticket_id = db.Column(db.Integer, db.ForeignKey('tickets.id'), index=True)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text)
+    is_read = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    user = db.relationship('User')
+    ticket = db.relationship('Ticket')
+
+    def __repr__(self):
+        return f'<Notification {self.id} user={self.user_id} read={self.is_read}>'
+
+
 class OverdueAuditSweep(db.Model):
     """Monthly/quarterly overdue audit sweep run."""
 
@@ -484,6 +600,27 @@ class GoogleAdminSyncLog(db.Model):
         return f'<GoogleAdminSyncLog {self.id} {self.status}>'
 
 
+class GoogleAdminDeviceUserLog(db.Model):
+    """Log of ChromeOS device users observed via Google Admin."""
+
+    __tablename__ = 'google_admin_device_user_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('assets.id'), nullable=False, index=True)
+    user_email = db.Column(db.String(120), index=True)
+    observed_at = db.Column(db.DateTime, nullable=False, index=True)
+    device_serial = db.Column(db.String(100))
+    device_asset_tag = db.Column(db.String(100))
+    recent_users_json = db.Column(db.Text)
+    last_sync_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    asset = db.relationship('Asset', backref=db.backref('google_admin_user_logs', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<GoogleAdminDeviceUserLog {self.id} {self.user_email}>'
+
+
 class GoogleAdminDeviceModelMapping(db.Model):
     """Maps Google Admin device model to local device group."""
 
@@ -515,3 +652,35 @@ class SyncLog(db.Model):
 
     def __repr__(self):
         return f'<SyncLog {self.id}: {self.sync_type} - {self.status}>'
+
+
+class AppSetting(db.Model):
+    """Key/value application settings."""
+
+    __tablename__ = 'app_settings'
+
+    key = db.Column(db.String(120), primary_key=True)
+    value = db.Column(db.Text)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f'<AppSetting {self.key}>'
+
+
+class AuditLedgerEntry(db.Model):
+    """Append-only audit ledger entry with hash chaining."""
+
+    __tablename__ = 'audit_ledger_entries'
+
+    id = db.Column(db.Integer, primary_key=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    event_type = db.Column(db.String(80), nullable=False, index=True)
+    entity_type = db.Column(db.String(80), nullable=False, index=True)
+    entity_id = db.Column(db.Integer, index=True)
+    actor_id = db.Column(db.Integer, index=True)
+    payload_json = db.Column(db.Text)
+    prev_hash = db.Column(db.String(64), index=True)
+    entry_hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
+
+    def __repr__(self):
+        return f'<AuditLedgerEntry {self.id} {self.event_type}>'

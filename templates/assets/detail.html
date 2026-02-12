@@ -123,6 +123,90 @@
                 </div>
                 {% endif %}
 
+                {% if asset.warranty_vendor or asset.warranty_end_date or asset.warranty_notes %}
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Warranty Vendor:</strong><br>
+                        {{ asset.warranty_vendor or '-' }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Warranty End:</strong><br>
+                        {{ asset.warranty_end_date.strftime('%Y-%m-%d') if asset.warranty_end_date else '-' }}
+                    </div>
+                    {% if asset.warranty_notes %}
+                    <div class="col-12 mt-2">
+                        <strong>Warranty Notes:</strong><br>
+                        {{ asset.warranty_notes }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if asset.software_name or asset.license_key or asset.license_expires_on or asset.license_assigned_to or asset.license_seats %}
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Software:</strong><br>
+                        {{ asset.software_name or '-' }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>License Key:</strong><br>
+                        {{ asset.license_key or '-' }}
+                    </div>
+                    <div class="col-md-4 mt-2">
+                        <strong>Seats:</strong><br>
+                        {{ asset.license_seats if asset.license_seats is not none else '-' }}
+                    </div>
+                    <div class="col-md-4 mt-2">
+                        <strong>Expires:</strong><br>
+                        {{ asset.license_expires_on.strftime('%Y-%m-%d') if asset.license_expires_on else '-' }}
+                    </div>
+                    <div class="col-md-4 mt-2">
+                        <strong>Assigned To:</strong><br>
+                        {{ asset.license_assigned_to or '-' }}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if asset.accessory_type or asset.accessory_compatibility or asset.accessory_notes %}
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Accessory Type:</strong><br>
+                        {{ asset.accessory_type or '-' }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Compatibility:</strong><br>
+                        {{ asset.accessory_compatibility or '-' }}
+                    </div>
+                    {% if asset.accessory_notes %}
+                    <div class="col-12 mt-2">
+                        <strong>Accessory Notes:</strong><br>
+                        {{ asset.accessory_notes }}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if asset.toner_model or asset.toner_compatible_printer or asset.toner_quantity is not none or asset.toner_reorder_threshold is not none %}
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Toner Model:</strong><br>
+                        {{ asset.toner_model or '-' }}
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Compatible Printer:</strong><br>
+                        {{ asset.toner_compatible_printer or '-' }}
+                    </div>
+                    <div class="col-md-6 mt-2">
+                        <strong>Quantity:</strong><br>
+                        {{ asset.toner_quantity if asset.toner_quantity is not none else '-' }}
+                    </div>
+                    <div class="col-md-6 mt-2">
+                        <strong>Reorder Threshold:</strong><br>
+                        {{ asset.toner_reorder_threshold if asset.toner_reorder_threshold is not none else '-' }}
+                    </div>
+                </div>
+                {% endif %}
+
                 {% if asset.notes %}
                 <div class="row mb-3">
                     <div class="col-12">
@@ -163,6 +247,47 @@
                 </p>
                 {% endif %}
                 <p><strong>Checked out by:</strong><br>{{ asset.current_checkout.user.name }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Google Admin Device User Info -->
+        {% if asset.google_admin_last_user_email or device_user_logs %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Google Admin Device Users</h5>
+            </div>
+            <div class="card-body">
+                {% if asset.google_admin_last_user_email %}
+                <p class="mb-2">
+                    <strong>Last seen user:</strong><br>
+                    {{ asset.google_admin_last_user_email }}
+                </p>
+                {% if asset.google_admin_last_user_seen_at %}
+                <p class="mb-2">
+                    <strong>Last sync time:</strong><br>
+                    {{ asset.google_admin_last_user_seen_at.strftime('%Y-%m-%d %H:%M') }}
+                </p>
+                {% endif %}
+                {% else %}
+                <p class="text-muted mb-2">No user data synced yet.</p>
+                {% endif %}
+
+                {% if device_user_logs %}
+                <div class="mt-3">
+                    <strong>Recent log entries:</strong>
+                    <ul class="list-unstyled mb-0">
+                        {% for log in device_user_logs %}
+                        <li>
+                            <small>
+                                {{ log.observed_at.strftime('%Y-%m-%d %H:%M') }} —
+                                {{ log.user_email or 'Unknown user' }}
+                            </small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
             </div>
         </div>
         {% endif %}

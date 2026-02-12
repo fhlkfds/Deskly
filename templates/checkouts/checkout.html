@@ -21,7 +21,11 @@
                 <form method="POST">
                     <div class="mb-4">
                         <label for="asset_id" class="form-label">Select Asset <span class="text-danger">*</span></label>
-                        <select class="form-select form-select-lg" id="asset_id" name="asset_id" required>
+                        <div class="position-relative">
+                            <input type="text" class="form-control form-control-lg" id="asset_search_input" placeholder="Search assets by tag, name, or location" autocomplete="off">
+                            <div class="list-group position-absolute w-100 shadow d-none" id="asset_search_list" style="z-index: 10; max-height: 240px; overflow-y: auto;"></div>
+                        </div>
+                        <select class="form-select form-select-lg d-none" id="asset_id" name="asset_id" required>
                             <option value="">-- Select an available asset --</option>
                             {% for asset in assets %}
                             <option value="{{ asset.id }}"
@@ -40,8 +44,16 @@
                     <div class="mb-3">
                         <label for="checked_out_to" class="form-label">Check Out To <span class="text-danger">*</span></label>
                         <input type="text" class="form-control form-control-lg" id="checked_out_to" name="checked_out_to"
-                               placeholder="Teacher or student name" required>
-                        <small class="form-text text-muted">Enter the name of the person receiving this asset</small>
+                               placeholder="Name, email, or user asset tag" required>
+                        <small class="form-text text-muted">Type a name, email, or asset tag. We'll verify emails/tags.</small>
+                        <div class="position-relative mt-2">
+                            <div class="list-group position-absolute w-100 shadow d-none" id="user_search_list" style="z-index: 10; max-height: 240px; overflow-y: auto;"></div>
+                        </div>
+                        <div class="mt-2">
+                            <a class="btn btn-sm btn-outline-secondary" id="create-user-link" href="{{ url_for('users.create') }}">
+                                <i class="bi bi-person-plus"></i> Create User
+                            </a>
+                        </div>
                     </div>
 
                     <div class="mb-3">
@@ -112,4 +124,120 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const checkoutInput = document.getElementById('checked_out_to');
+const createUserLink = document.getElementById('create-user-link');
+const assetSelect = document.getElementById('asset_id');
+const assetSearchInput = document.getElementById('asset_search_input');
+const assetSearchList = document.getElementById('asset_search_list');
+const userSearchList = document.getElementById('user_search_list');
+
+const assetOptions = Array.from(assetSelect.options)
+    .slice(1)
+    .map(option => ({
+        value: option.value,
+        label: option.textContent.trim()
+    }));
+
+function setCreateLink(value) {
+    const params = new URLSearchParams();
+    if (value.includes('@')) {
+        params.set('email', value);
+    } else {
+        params.set('name', value);
+    }
+    createUserLink.href = `{{ url_for('users.create') }}?${params.toString()}`;
+}
+
+function renderAssetList(matches) {
+    assetSearchList.innerHTML = '';
+    if (!matches.length) {
+        assetSearchList.classList.add('d-none');
+        return;
+    }
+    matches.forEach(match => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'list-group-item list-group-item-action';
+        item.textContent = match.label;
+        item.addEventListener('click', () => {
+            assetSelect.value = match.value;
+            assetSearchInput.value = match.label;
+            assetSearchList.classList.add('d-none');
+        });
+        assetSearchList.appendChild(item);
+    });
+    assetSearchList.classList.remove('d-none');
+}
+
+function filterAssets(term) {
+    const normalized = term.toLowerCase();
+    const matches = assetOptions.filter(option => option.label.toLowerCase().includes(normalized));
+    renderAssetList(matches);
+}
+
+async function searchUsers(value) {
+    if (!value || value.length < 2) {
+        userSearchList.innerHTML = '';
+        userSearchList.classList.add('d-none');
+        setCreateLink(value || '');
+        return;
+    }
+    setCreateLink(value);
+    const response = await fetch(`{{ url_for('users.search_users') }}?q=${encodeURIComponent(value)}`);
+    if (!response.ok) return;
+    const results = await response.json();
+    userSearchList.innerHTML = '';
+    results.forEach(user => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'list-group-item list-group-item-action';
+        const tag = user.asset_tag ? ` • ${user.asset_tag}` : '';
+        item.textContent = `${user.name} (${user.email})${tag}`;
+        item.addEventListener('click', () => {
+            checkoutInput.value = user.email || user.name;
+            setCreateLink(checkoutInput.value);
+            userSearchList.classList.add('d-none');
+        });
+        userSearchList.appendChild(item);
+    });
+    if (!results.length) {
+        const emptyItem = document.createElement('div');
+        emptyItem.className = 'list-group-item text-muted';
+        emptyItem.textContent = 'No users found. Create a new user if needed.';
+        userSearchList.appendChild(emptyItem);
+    }
+    userSearchList.classList.remove('d-none');
+}
+
+checkoutInput.addEventListener('input', (event) => {
+    searchUsers(event.target.value);
+});
+
+checkoutInput.addEventListener('focus', (event) => {
+    searchUsers(event.target.value);
+});
+
+assetSearchInput.addEventListener('input', (event) => {
+    filterAssets(event.target.value);
+});
+
+assetSearchInput.addEventListener('focus', () => {
+    if (assetSearchInput.value) {
+        filterAssets(assetSearchInput.value);
+    }
+});
+
+document.addEventListener('click', (event) => {
+    if (!assetSearchList.contains(event.target) && event.target !== assetSearchInput) {
+        assetSearchList.classList.add('d-none');
+    }
+    if (!userSearchList.contains(event.target) && event.target !== checkoutInput) {
+        userSearchList.classList.add('d-none');
+    }
+});
+</script>
 {% endblock %}

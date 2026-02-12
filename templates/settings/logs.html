@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}Security Logs - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-shield-lock"></i> Security Logs</h2>
+        <p class="text-muted mb-0">Login/logout and checkout activity for troubleshooting.</p>
+    </div>
+</div>
+
+{% if not audit_ledger_enabled %}
+<div class="alert alert-warning">
+    Audit ledger is disabled. Enable it in Settings → Misc to capture new security events.
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Recent Security Events</h5>
+    </div>
+    <div class="card-body">
+        {% if security_events %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Actor</th>
+                        <th>Summary</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in security_events %}
+                    <tr>
+                        <td><small>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td><span class="badge bg-secondary">{{ event.event_type }}</span></td>
+                        <td>{{ event.actor_name }}</td>
+                        <td>{{ event.summary }}</td>
+                        <td><small>{{ event.payload.get('ip', '-') }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No security events yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">App Logs</h5>
+    </div>
+    <div class="card-body">
+        {% if app_events %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Actor</th>
+                        <th>Payload</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in app_events %}
+                    <tr>
+                        <td><small>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td><span class="badge bg-secondary">{{ event.event_type }}</span></td>
+                        <td>{{ event.actor_name }}</td>
+                        <td><small>{{ event.payload }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No app logs yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Asset Logs</h5>
+    </div>
+    <div class="card-body">
+        {% if asset_events %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Actor</th>
+                        <th>Payload</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in asset_events %}
+                    <tr>
+                        <td><small>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td><span class="badge bg-secondary">{{ event.event_type }}</span></td>
+                        <td>{{ event.actor_name }}</td>
+                        <td><small>{{ event.payload }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No asset logs yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Documentation Logs</h5>
+    </div>
+    <div class="card-body">
+        {% if doc_events %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Actor</th>
+                        <th>Payload</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in doc_events %}
+                    <tr>
+                        <td><small>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td><span class="badge bg-secondary">{{ event.event_type }}</span></td>
+                        <td>{{ event.actor_name }}</td>
+                        <td><small>{{ event.payload }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No documentation logs yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Account Logs</h5>
+    </div>
+    <div class="card-body">
+        {% if account_events %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Actor</th>
+                        <th>Payload</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in account_events %}
+                    <tr>
+                        <td><small>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td><span class="badge bg-secondary">{{ event.event_type }}</span></td>
+                        <td>{{ event.actor_name }}</td>
+                        <td><small>{{ event.payload }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No account logs yet.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Ticket Logs</h5>
+    </div>
+    <div class="card-body">
+        {% if ticket_events %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Actor</th>
+                        <th>Payload</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in ticket_events %}
+                    <tr>
+                        <td><small>{{ event.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td><span class="badge bg-secondary">{{ event.event_type }}</span></td>
+                        <td>{{ event.actor_name }}</td>
+                        <td><small>{{ event.payload }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No ticket logs yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

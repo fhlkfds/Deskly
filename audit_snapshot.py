@@ -2,6 +2,7 @@ import csv
 import hashlib
 import io
 import json
+import os
 import smtplib
 import zipfile
 from datetime import datetime, timezone
@@ -17,6 +18,7 @@ from models import (
     RepairTicket,
     AuditSnapshotLog,
     AuditSnapshotSchedule,
+    AppSetting,
 )
 
 
@@ -42,6 +44,275 @@ def _csv_bytes(columns, rows):
 def _sha256_hex(data):
     return hashlib.sha256(data).hexdigest()
 
+
+AUDIT_LOG_COLUMNS = [
+    'timestamp_utc',
+    'snapshot_filename',
+    'zip_sha256',
+    'manifest_sha256',
+    'drive_zip_file_id',
+    'drive_manifest_csv_file_id',
+    'drive_manifest_pdf_file_id',
+    'local_zip_path',
+    'local_manifest_csv_path',
+    'local_manifest_pdf_path',
+    'prev_hash',
+    'row_hash',
+]
+
+
+def _get_setting(key, default=''):
+    setting = AppSetting.query.get(key)
+    if not setting:
+        return default
+    return setting.value if setting.value is not None else default
+
+
+def _setting_enabled(key):
+    return _get_setting(key, 'false') == 'true'
+
+
+def _build_manifest_rows(manifest):
+    rows = []
+    for name, meta in sorted(manifest.get('files', {}).items()):
+        rows.append([name, meta.get('sha256', ''), meta.get('size_bytes', '')])
+    return rows
+
+
+def _build_manifest_csv_bytes(manifest):
+    return _csv_bytes(['file', 'sha256', 'size_bytes'], _build_manifest_rows(manifest))
+
+
+def _build_manifest_pdf_bytes(manifest):
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas
+    except Exception as exc:
+        raise RuntimeError('PDF export requires reportlab. Install dependencies and retry.') from exc
+
+    rows = _build_manifest_rows(manifest)
+    buffer = io.BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 40
+
+    pdf.setFont('Helvetica-Bold', 12)
+    pdf.drawString(40, y, 'Audit Snapshot Manifest')
+    y -= 20
+    pdf.setFont('Helvetica', 8)
+    pdf.drawString(40, y, f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    y -= 20
+
+    pdf.setFont('Helvetica-Bold', 8)
+    pdf.drawString(40, y, 'file | sha256 | size_bytes')
+    y -= 14
+    pdf.setFont('Helvetica', 8)
+
+    for row in rows:
+        if y < 40:
+            pdf.showPage()
+            y = height - 40
+            pdf.setFont('Helvetica', 8)
+        line = ' | '.join(str(col) for col in row)
+        pdf.drawString(40, y, line[:150])
+        y -= 12
+
+    pdf.save()
+    buffer.seek(0)
+    return buffer.read()
+
+
+def _compute_row_hash(prev_hash, fields):
+    parts = [prev_hash or ''] + [str(field or '') for field in fields]
+    return hashlib.sha256('|'.join(parts).encode('utf-8')).hexdigest()
+
+
+def _write_audit_log_local(local_path, row_values):
+    if not local_path:
+        return None
+    os.makedirs(os.path.dirname(local_path) or '.', exist_ok=True)
+    prev_hash = ''
+    if os.path.exists(local_path):
+        with open(local_path, 'r', encoding='utf-8', newline='') as handle:
+            reader = csv.reader(handle)
+            last_row = None
+            for row in reader:
+                if row and row[0] != AUDIT_LOG_COLUMNS[0]:
+                    last_row = row
+            if last_row and len(last_row) >= len(AUDIT_LOG_COLUMNS):
+                prev_hash = last_row[-1]
+
+    row_with_hash = list(row_values)
+    row_hash = _compute_row_hash(prev_hash, row_with_hash)
+    row_with_hash.extend([prev_hash, row_hash])
+
+    write_header = not os.path.exists(local_path)
+    with open(local_path, 'a', encoding='utf-8', newline='') as handle:
+        writer = csv.writer(handle)
+        if write_header:
+            writer.writerow(AUDIT_LOG_COLUMNS)
+        writer.writerow(row_with_hash)
+    return row_hash
+
+
+def _write_audit_log_sheet(sheet_id, tab_name, credentials_file, row_values):
+    if not sheet_id or not credentials_file:
+        return None
+    try:
+        import gspread
+    except Exception as exc:
+        raise RuntimeError('gspread is not installed. Run pip install -r requirements.txt') from exc
+
+    gc = gspread.service_account(filename=credentials_file)
+    spreadsheet = gc.open_by_key(sheet_id)
+    try:
+        worksheet = spreadsheet.worksheet(tab_name)
+    except gspread.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=len(AUDIT_LOG_COLUMNS))
+
+    rows = worksheet.get_all_values()
+    prev_hash = ''
+    if len(rows) > 1:
+        last_row = rows[-1]
+        if len(last_row) >= len(AUDIT_LOG_COLUMNS):
+            prev_hash = last_row[-1]
+
+    row_with_hash = list(row_values)
+    row_hash = _compute_row_hash(prev_hash, row_with_hash)
+    row_with_hash.extend([prev_hash, row_hash])
+
+    if not rows:
+        worksheet.append_row(AUDIT_LOG_COLUMNS, value_input_option='RAW')
+    worksheet.append_row(row_with_hash, value_input_option='RAW')
+    return row_hash
+
+
+def _upload_to_drive(service, filename, mime_type, file_bytes, folder_id=None):
+    try:
+        from googleapiclient.http import MediaIoBaseUpload
+    except Exception as exc:
+        raise RuntimeError('google-api-python-client is not installed. Run pip install -r requirements.txt') from exc
+
+    metadata = {'name': filename}
+    if folder_id:
+        metadata['parents'] = [folder_id]
+    media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=False)
+    created = service.files().create(body=metadata, media_body=media, fields='id').execute()
+    return created.get('id')
+
+
+def _get_drive_service(credentials_file):
+    if not credentials_file:
+        return None
+    if not os.path.exists(credentials_file):
+        raise FileNotFoundError(f'Drive credentials file not found: {credentials_file}')
+    try:
+        from googleapiclient.discovery import build
+        from google.oauth2 import service_account
+    except Exception as exc:
+        raise RuntimeError('google-api-python-client is not installed. Run pip install -r requirements.txt') from exc
+
+    creds = service_account.Credentials.from_service_account_file(
+        credentials_file,
+        scopes=['https://www.googleapis.com/auth/drive.file'],
+    )
+    return build('drive', 'v3', credentials=creds, cache_discovery=False)
+
+
+def handle_snapshot_artifacts(zip_bytes, manifest_sha, manifest, filename):
+    results = {
+        'zip_sha256': _sha256_hex(zip_bytes),
+        'drive_zip_file_id': None,
+        'drive_manifest_csv_file_id': None,
+        'drive_manifest_pdf_file_id': None,
+        'local_zip_path': None,
+        'local_manifest_csv_path': None,
+        'local_manifest_pdf_path': None,
+        'audit_log_sheet_row_hash': None,
+        'audit_log_local_row_hash': None,
+        'errors': [],
+    }
+
+    manifest_csv = _build_manifest_csv_bytes(manifest)
+    try:
+        manifest_pdf = _build_manifest_pdf_bytes(manifest)
+    except Exception as exc:
+        manifest_pdf = None
+        results['errors'].append(str(exc))
+
+    if _setting_enabled('audit_local_output_enabled'):
+        output_dir = _get_setting('audit_local_output_dir', 'audit_snapshots').strip()
+        if not output_dir:
+            output_dir = 'audit_snapshots'
+        os.makedirs(output_dir, exist_ok=True)
+        zip_path = os.path.join(output_dir, filename)
+        manifest_csv_path = os.path.join(output_dir, filename.replace('.zip', '_manifest.csv'))
+        manifest_pdf_path = os.path.join(output_dir, filename.replace('.zip', '_manifest.pdf'))
+        try:
+            with open(zip_path, 'wb') as handle:
+                handle.write(zip_bytes)
+            with open(manifest_csv_path, 'wb') as handle:
+                handle.write(manifest_csv)
+            if manifest_pdf:
+                with open(manifest_pdf_path, 'wb') as handle:
+                    handle.write(manifest_pdf)
+            results['local_zip_path'] = zip_path
+            results['local_manifest_csv_path'] = manifest_csv_path
+            results['local_manifest_pdf_path'] = manifest_pdf_path if manifest_pdf else None
+        except Exception as exc:
+            results['errors'].append(f'Local output failed: {str(exc)}')
+
+    if _setting_enabled('audit_drive_enabled'):
+        credentials_file = _get_setting('audit_drive_credentials_file', '').strip()
+        folder_id = _get_setting('audit_drive_folder_id', '').strip() or None
+        try:
+            service = _get_drive_service(credentials_file)
+            if service:
+                results['drive_zip_file_id'] = _upload_to_drive(
+                    service, filename, 'application/zip', zip_bytes, folder_id
+                )
+                results['drive_manifest_csv_file_id'] = _upload_to_drive(
+                    service, filename.replace('.zip', '_manifest.csv'), 'text/csv', manifest_csv, folder_id
+                )
+                if manifest_pdf:
+                    results['drive_manifest_pdf_file_id'] = _upload_to_drive(
+                        service, filename.replace('.zip', '_manifest.pdf'), 'application/pdf', manifest_pdf, folder_id
+                    )
+        except Exception as exc:
+            results['errors'].append(f'Drive upload failed: {str(exc)}')
+
+    row_values = [
+        datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+        filename,
+        results['zip_sha256'],
+        manifest_sha,
+        results['drive_zip_file_id'] or '',
+        results['drive_manifest_csv_file_id'] or '',
+        results['drive_manifest_pdf_file_id'] or '',
+        results['local_zip_path'] or '',
+        results['local_manifest_csv_path'] or '',
+        results['local_manifest_pdf_path'] or '',
+    ]
+
+    if _setting_enabled('audit_log_sheet_enabled'):
+        sheet_id = _get_setting('audit_log_sheet_id', '').strip()
+        tab_name = _get_setting('audit_log_sheet_tab', 'AuditLog').strip() or 'AuditLog'
+        credentials_file = _get_setting('audit_log_sheet_credentials_file', '').strip()
+        try:
+            results['audit_log_sheet_row_hash'] = _write_audit_log_sheet(
+                sheet_id, tab_name, credentials_file, row_values
+            )
+        except Exception as exc:
+            results['errors'].append(f'Google Sheet log failed: {str(exc)}')
+
+    if _setting_enabled('audit_log_local_enabled'):
+        local_path = _get_setting('audit_log_local_path', 'audit_logs/audit_log.csv').strip()
+        try:
+            results['audit_log_local_row_hash'] = _write_audit_log_local(local_path, row_values)
+        except Exception as exc:
+            results['errors'].append(f'Local log failed: {str(exc)}')
+
+    return results
 
 def _build_snapshot_files():
     assignment_rows = db.session.query(
@@ -167,6 +438,7 @@ def build_audit_snapshot_bundle():
 
     manifest_json_bytes = json.dumps(manifest, indent=2, sort_keys=True).encode('utf-8')
     manifest_sha = _sha256_hex(manifest_json_bytes)
+    manifest['manifest_sha256'] = manifest_sha
     manifest_sha_bytes = f"{manifest_sha}  manifest.json\n".encode('utf-8')
 
     zip_buffer = io.BytesIO()
@@ -181,7 +453,7 @@ def build_audit_snapshot_bundle():
         zf.writestr('README.txt', files['README.txt'])
 
     zip_buffer.seek(0)
-    return zip_buffer.read(), manifest_sha
+    return zip_buffer.read(), manifest_sha, manifest
 
 
 def send_snapshot_email(recipient_email, zip_bytes, filename):
@@ -222,6 +494,21 @@ def create_snapshot_log(trigger_type, delivery_method, filename, manifest_sha256
         created_by=created_by,
     )
     db.session.add(log)
+    db.session.flush()
+    from audit_ledger import append_ledger_entry
+    append_ledger_entry(
+        event_type='audit_snapshot',
+        entity_type='audit_snapshot_log',
+        entity_id=log.id,
+        actor_id=created_by,
+        payload={
+            'trigger_type': trigger_type,
+            'delivery_method': delivery_method,
+            'filename': filename,
+            'manifest_sha256': manifest_sha256,
+            'status': status,
+        }
+    )
     db.session.commit()
     return log
 
@@ -269,8 +556,12 @@ def run_scheduled_snapshot_if_due():
     filename = f'audit_snapshot_{timestamp}.zip'
 
     try:
-        zip_bytes, manifest_sha = build_audit_snapshot_bundle()
+        zip_bytes, manifest_sha, manifest = build_audit_snapshot_bundle()
         send_snapshot_email(schedule.recipient_email, zip_bytes, filename)
+        artifacts = handle_snapshot_artifacts(zip_bytes, manifest_sha, manifest, filename)
+        artifact_message = ''
+        if artifacts.get('errors'):
+            artifact_message = f" Storage warnings: {'; '.join(artifacts['errors'])}"
         schedule.last_run_at = now
         db.session.commit()
         create_snapshot_log(
@@ -279,7 +570,7 @@ def run_scheduled_snapshot_if_due():
             filename=filename,
             manifest_sha256=manifest_sha,
             status='success',
-            message='Scheduled snapshot emailed.',
+            message=f'Scheduled snapshot emailed.{artifact_message}',
             recipient_email=schedule.recipient_email,
             created_by=None,
         )

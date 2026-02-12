@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Ticket #{{ ticket.id }} - {{ branding_app_name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-ticket-detailed"></i> Ticket {{ ticket.ticket_code or ('#' ~ ticket.id) }}</h2>
+        <p class="text-muted mb-0">{{ ticket.subject }}</p>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('tickets.index') }}" class="btn btn-outline-secondary">Back to Tickets</a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Details</h6>
+            </div>
+            <div class="card-body">
+                {% if ticket.body_text %}
+                <pre class="mb-0" style="white-space: pre-wrap;">{{ ticket.body_text }}</pre>
+                {% else %}
+                <p class="text-muted mb-0">No message body captured.</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">Comments</h6>
+            </div>
+            <div class="card-body">
+                {% if comments %}
+                <div class="mb-3">
+                    {% for comment in comments %}
+                    <div class="border rounded p-3 mb-2 {% if comment.is_internal %}bg-light{% endif %}">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ comment.author.name }}</strong>
+                            <small class="text-muted">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </div>
+                        {% if comment.is_internal %}
+                        <div class="badge bg-secondary mb-2">Internal note</div>
+                        {% else %}
+                        <div class="badge bg-primary mb-2">Public reply</div>
+                        {% endif %}
+                        <div>{{ comment.body }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-3">No comments yet.</p>
+                {% endif %}
+                <form method="POST" action="{{ url_for('tickets.add_comment', ticket_id=ticket.id) }}">
+                    <div class="mb-3">
+                        <label for="body" class="form-label">Add Comment</label>
+                        <textarea class="form-control" id="body" name="body" rows="4" required></textarea>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="is_internal" name="is_internal">
+                        <label class="form-check-label" for="is_internal">Internal note (agent/admin only)</label>
+                    </div>
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-chat-left-text"></i> Post Comment
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Summary</h6>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('tickets.update', ticket_id=ticket.id) }}">
+                    <div class="mb-2">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status">
+                            {% for option in status_options %}
+                            <option value="{{ option }}" {% if ticket.status == option %}selected{% endif %}>{{ option|title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label for="priority" class="form-label">Priority</label>
+                        <select class="form-select" id="priority" name="priority">
+                            {% for option in priority_options %}
+                            <option value="{{ option }}" {% if ticket.priority == option %}selected{% endif %}>{{ option|title }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label for="category" class="form-label">Category</label>
+                        <input class="form-control" id="category" name="category" list="categoryOptions" value="{{ ticket.category or '' }}">
+                        <datalist id="categoryOptions">
+                            {% for option in category_options %}
+                            <option value="{{ option }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="mb-2">
+                        <label for="tags" class="form-label">Tags</label>
+                        <input class="form-control" id="tags" name="tags" list="tagOptions" value="{{ ticket.tags or '' }}" placeholder="comma-separated tags">
+                        <datalist id="tagOptions">
+                            {% for tag in tag_options %}
+                            <option value="{{ tag }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="mb-2">
+                        <label for="assigned_to_id" class="form-label">Assignee</label>
+                        <select class="form-select" id="assigned_to_id" name="assigned_to_id">
+                            <option value="">Unassigned</option>
+                            {% for user in assignees %}
+                            <option value="{{ user.id }}" {% if ticket.assigned_to_id == user.id %}selected{% endif %}>{{ user.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-save"></i> Save
+                        </button>
+                    </div>
+                </form>
+                <div class="mb-3">
+                    <label for="document_id" class="form-label">Link Documentation</label>
+                    <form method="POST" action="{{ url_for('tickets.link_doc', ticket_id=ticket.id) }}" class="d-flex gap-2">
+                        <select class="form-select" id="document_id" name="document_id" required>
+                            <option value="">Select documentation</option>
+                            {% for doc in documents %}
+                            <option value="{{ doc.id }}">{{ doc.title }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-link-45deg"></i>
+                        </button>
+                    </form>
+                    {% if linked_docs %}
+                    <div class="mt-2">
+                        {% for link in linked_docs %}
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <a href="{{ url_for('docs.view_document', doc_id=link.document_id) }}" class="small">{{ link.document.title }}</a>
+                            <form method="POST" action="{{ url_for('tickets.unlink_doc', ticket_id=ticket.id) }}">
+                                <input type="hidden" name="link_id" value="{{ link.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-muted small mt-2">No docs linked.</div>
+                    {% endif %}
+                </div>
+                <div class="mb-2"><strong>Source:</strong> {{ ticket.source|title }}</div>
+                <div class="mb-2"><strong>Requester:</strong> {{ ticket.requester_name or ticket.requester_email }}</div>
+                <div class="mb-2"><strong>Email:</strong> {{ ticket.requester_email }}</div>
+                <div class="mb-2"><strong>Last Update:</strong> {{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

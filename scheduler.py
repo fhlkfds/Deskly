@@ -52,6 +52,19 @@ def google_admin_sync_schedule_job():
         print(f'Scheduled Google Admin sync error: {str(e)}')
 
 
+def ticket_gmail_import_job():
+    """Background job to import tickets from Gmail."""
+    try:
+        from app import app
+        from tickets import run_ticket_gmail_import_if_enabled
+        with app.app_context():
+            created = run_ticket_gmail_import_if_enabled()
+            if created:
+                print(f'Scheduled Gmail ticket import: {created} new tickets')
+    except Exception as e:
+        print(f'Scheduled Gmail ticket import error: {str(e)}')
+
+
 def init_scheduler(app):
     """Initialize the background scheduler."""
     if app.debug and os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
@@ -82,6 +95,14 @@ def init_scheduler(app):
             trigger=IntervalTrigger(minutes=Config.GOOGLE_ADMIN_SYNC_SCHEDULER_INTERVAL_MINUTES),
             id='google_admin_sync_schedule',
             name='Scheduled Google Admin Sync',
+            replace_existing=True
+        )
+
+        scheduler.add_job(
+            func=ticket_gmail_import_job,
+            trigger=IntervalTrigger(minutes=Config.TICKET_GMAIL_IMPORT_INTERVAL_MINUTES),
+            id='ticket_gmail_import',
+            name='Scheduled Gmail Ticket Import',
             replace_existing=True
         )
 

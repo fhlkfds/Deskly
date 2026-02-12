@@ -1,7 +1,8 @@
 from flask import Flask, render_template, redirect, url_for, request, jsonify
 from flask_login import login_required, current_user
 from config import Config
-from models import db, Asset, Checkout, User, RepairTicket
+from models import db, Asset, Checkout, User, RepairTicket, AppSetting, Notification
+from sqlalchemy.exc import OperationalError
 from auth import auth_bp, init_auth, roles_required
 from assets import assets_bp
 from checkouts import checkouts_bp
@@ -9,8 +10,11 @@ from settings import settings_bp
 from users import users_bp
 from reports import reports_bp
 from docs import docs_bp
+from tickets import tickets_bp
+from notifications import notifications_bp
 from scheduler import init_scheduler
 from datetime import datetime, timedelta
+import json
 import os
 
 # Create Flask app
@@ -30,9 +34,54 @@ app.register_blueprint(settings_bp)
 app.register_blueprint(users_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(docs_bp)
+app.register_blueprint(tickets_bp)
+app.register_blueprint(notifications_bp)
 
 # Initialize scheduler (commented out by default - uncomment when Google Sheets is configured)
 init_scheduler(app)
+
+
+def _get_setting_value(key, default=''):
+    try:
+        setting = AppSetting.query.get(key)
+    except OperationalError:
+        return default
+    if not setting or setting.value is None:
+        return default
+    return setting.value
+
+
+@app.context_processor
+def inject_branding():
+    sso_google_enabled = _get_setting_value('sso_google_enabled', 'false') == 'true'
+    sso_microsoft_enabled = _get_setting_value('sso_microsoft_enabled', 'false') == 'true'
+    google_configured = bool(app.config.get('GOOGLE_OAUTH_CLIENT_ID') and app.config.get('GOOGLE_OAUTH_CLIENT_SECRET'))
+    microsoft_configured = bool(app.config.get('MICROSOFT_OAUTH_CLIENT_ID') and app.config.get('MICROSOFT_OAUTH_CLIENT_SECRET'))
+    ticket_roles_raw = _get_setting_value('ticket_visibility_roles', '')
+    try:
+        ticket_visibility_roles = json.loads(ticket_roles_raw) if ticket_roles_raw else ['admin', 'helpdesk', 'staff']
+    except json.JSONDecodeError:
+        ticket_visibility_roles = ['admin', 'helpdesk', 'staff']
+    can_access_tickets = current_user.is_authenticated and current_user.role in ticket_visibility_roles
+    unread_notifications = 0
+    if current_user.is_authenticated:
+        try:
+            unread_notifications = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+        except OperationalError:
+            unread_notifications = 0
+    return {
+        'branding_app_name': _get_setting_value('branding_app_name', 'School Inventory'),
+        'branding_favicon_url': _get_setting_value('branding_favicon_url', ''),
+        'branding_app_icon_url': _get_setting_value('branding_app_icon_url', ''),
+        'branding_primary_color': _get_setting_value('branding_primary_color', ''),
+        'branding_secondary_color': _get_setting_value('branding_secondary_color', ''),
+        'branding_accent_color': _get_setting_value('branding_accent_color', ''),
+        'sso_google_enabled': sso_google_enabled and google_configured,
+        'sso_microsoft_enabled': sso_microsoft_enabled and microsoft_configured,
+        'ticket_visibility_roles': ticket_visibility_roles,
+        'can_access_tickets': can_access_tickets,
+        'unread_notifications': unread_notifications,
+    }
 
 
 @app.route('/')
@@ -246,5 +295,8 @@ if __name__ == '__main__':
     # Initialize database if it doesn't exist
     if not os.path.exists('database.db'):
         init_db()
+    else:
+        with app.app_context():
+            db.create_all()
 
     app.run(debug=True, host='0.0.0.0', port=5000)

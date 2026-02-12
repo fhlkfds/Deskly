@@ -23,7 +23,7 @@
                         <div class="col-md-6">
                             <label for="asset_tag" class="form-label">Asset Tag <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="asset_tag" name="asset_tag"
-                                   value="{{ asset.asset_tag if asset else '' }}" required>
+                                   value="{{ asset.asset_tag if asset else (default_asset_tag or '') }}" required>
                             <small class="form-text text-muted">Unique identifier for the asset</small>
                         </div>
                         <div class="col-md-6">
@@ -83,7 +83,14 @@
                         <label for="location" class="form-label">Location</label>
                         <input type="text" class="form-control" id="location" name="location"
                                placeholder="e.g., Room 101, Server Room"
-                               value="{{ asset.location if asset else '' }}">
+                               value="{{ asset.location if asset else '' }}" list="location_options">
+                        {% if locations %}
+                        <datalist id="location_options">
+                            {% for loc in locations %}
+                            <option value="{{ loc }}"></option>
+                            {% endfor %}
+                        </datalist>
+                        {% endif %}
                     </div>
 
                     <div class="row mb-3">
@@ -100,6 +107,105 @@
                                        step="0.01" min="0"
                                        value="{{ asset.purchase_cost if asset else '' }}">
                             </div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="warranty_vendor" class="form-label">Warranty Vendor</label>
+                            <input type="text" class="form-control" id="warranty_vendor" name="warranty_vendor"
+                                   value="{{ asset.warranty_vendor if asset else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="warranty_end_date" class="form-label">Warranty End Date</label>
+                            <input type="date" class="form-control" id="warranty_end_date" name="warranty_end_date"
+                                   value="{{ asset.warranty_end_date.strftime('%Y-%m-%d') if asset and asset.warranty_end_date else '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="warranty_notes" class="form-label">Warranty Notes</label>
+                        <input type="text" class="form-control" id="warranty_notes" name="warranty_notes"
+                               value="{{ asset.warranty_notes if asset else '' }}">
+                    </div>
+
+                    <hr>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="software_name" class="form-label">Software Name</label>
+                            <input type="text" class="form-control" id="software_name" name="software_name"
+                                   value="{{ asset.software_name if asset else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="license_key" class="form-label">License Key</label>
+                            <input type="text" class="form-control" id="license_key" name="license_key"
+                                   value="{{ asset.license_key if asset else '' }}">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="license_seats" class="form-label">License Seats</label>
+                            <input type="number" class="form-control" id="license_seats" name="license_seats"
+                                   min="0" value="{{ asset.license_seats if asset else '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="license_expires_on" class="form-label">License Expires</label>
+                            <input type="date" class="form-control" id="license_expires_on" name="license_expires_on"
+                                   value="{{ asset.license_expires_on.strftime('%Y-%m-%d') if asset and asset.license_expires_on else '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="license_assigned_to" class="form-label">License Assigned To</label>
+                            <input type="text" class="form-control" id="license_assigned_to" name="license_assigned_to"
+                                   value="{{ asset.license_assigned_to if asset else '' }}">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="accessory_type" class="form-label">Accessory Type</label>
+                            <input type="text" class="form-control" id="accessory_type" name="accessory_type"
+                                   value="{{ asset.accessory_type if asset else '' }}" placeholder="Keyboard, Mouse, Headphones">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="accessory_compatibility" class="form-label">Accessory Compatibility</label>
+                            <input type="text" class="form-control" id="accessory_compatibility" name="accessory_compatibility"
+                                   value="{{ asset.accessory_compatibility if asset else '' }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="accessory_notes" class="form-label">Accessory Notes</label>
+                        <input type="text" class="form-control" id="accessory_notes" name="accessory_notes"
+                               value="{{ asset.accessory_notes if asset else '' }}">
+                    </div>
+
+                    <hr>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="toner_model" class="form-label">Toner Model</label>
+                            <input type="text" class="form-control" id="toner_model" name="toner_model"
+                                   value="{{ asset.toner_model if asset else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="toner_compatible_printer" class="form-label">Compatible Printer</label>
+                            <input type="text" class="form-control" id="toner_compatible_printer" name="toner_compatible_printer"
+                                   value="{{ asset.toner_compatible_printer if asset else '' }}">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="toner_quantity" class="form-label">Toner Quantity</label>
+                            <input type="number" class="form-control" id="toner_quantity" name="toner_quantity"
+                                   min="0" value="{{ asset.toner_quantity if asset else '' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="toner_reorder_threshold" class="form-label">Reorder Threshold</label>
+                            <input type="number" class="form-control" id="toner_reorder_threshold" name="toner_reorder_threshold"
+                                   min="0" value="{{ asset.toner_reorder_threshold if asset else '' }}">
                         </div>
                     </div>
 

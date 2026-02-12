@@ -21,7 +21,11 @@
                 <form method="POST">
                     <div class="mb-4">
                         <label for="asset_id" class="form-label">Select Asset <span class="text-danger">*</span></label>
-                        <select class="form-select form-select-lg" id="asset_id" name="asset_id" required onchange="updateAssetInfo()">
+                        <div class="position-relative">
+                            <input type="text" class="form-control form-control-lg" id="asset_search_input" placeholder="Search assets by tag, name, or user" autocomplete="off">
+                            <div class="list-group position-absolute w-100 shadow d-none" id="asset_search_list" style="z-index: 10; max-height: 240px; overflow-y: auto;"></div>
+                        </div>
+                        <select class="form-select form-select-lg d-none" id="asset_id" name="asset_id" required onchange="updateAssetInfo()">
                             <option value="">-- Select a checked out asset --</option>
                             {% for asset in assets %}
                             <option value="{{ asset.id }}"
@@ -140,9 +144,62 @@ function updateAssetInfo() {
     }
 }
 
+const assetSelect = document.getElementById('asset_id');
+const assetSearchInput = document.getElementById('asset_search_input');
+const assetSearchList = document.getElementById('asset_search_list');
+const assetOptions = Array.from(assetSelect.options)
+    .slice(1)
+    .map(option => ({
+        value: option.value,
+        label: option.textContent.trim(),
+        checkoutTo: option.getAttribute('data-checkout-to') || '',
+        checkoutDate: option.getAttribute('data-checkout-date') || ''
+    }));
+
+function renderAssetList(matches) {
+    assetSearchList.innerHTML = '';
+    if (!matches.length) {
+        assetSearchList.classList.add('d-none');
+        return;
+    }
+    matches.forEach(match => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'list-group-item list-group-item-action';
+        item.textContent = match.label;
+        item.addEventListener('click', () => {
+            assetSelect.value = match.value;
+            assetSearchInput.value = match.label;
+            assetSearchList.classList.add('d-none');
+            updateAssetInfo();
+        });
+        assetSearchList.appendChild(item);
+    });
+    assetSearchList.classList.remove('d-none');
+}
+
+function filterAssets(term) {
+    const normalized = term.toLowerCase();
+    const matches = assetOptions.filter(option => option.label.toLowerCase().includes(normalized));
+    renderAssetList(matches);
+}
+
 // Initialize on page load if asset is pre-selected
 document.addEventListener('DOMContentLoaded', function() {
     updateAssetInfo();
+    assetSearchInput.addEventListener('input', (event) => {
+        filterAssets(event.target.value);
+    });
+    assetSearchInput.addEventListener('focus', () => {
+        if (assetSearchInput.value) {
+            filterAssets(assetSearchInput.value);
+        }
+    });
+    document.addEventListener('click', (event) => {
+        if (!assetSearchList.contains(event.target) && event.target !== assetSearchInput) {
+            assetSearchList.classList.add('d-none');
+        }
+    });
 });
 </script>
 {% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications - {{ branding_app_name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-bell"></i> Notifications</h2>
+        <p class="text-muted mb-0">Recent ticket updates and activity.</p>
+    </div>
+    <div class="col text-end">
+        <form method="POST" action="{{ url_for('notifications.mark_all_read') }}">
+            <button type="submit" class="btn btn-outline-secondary">
+                <i class="bi bi-check2-all"></i> Mark All Read
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if notifications %}
+        <div class="list-group">
+            {% for note in notifications %}
+            <div class="list-group-item {% if not note.is_read %}list-group-item-warning{% endif %}">
+                <div class="d-flex justify-content-between">
+                    <strong>{{ note.title }}</strong>
+                    <small class="text-muted">{{ note.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                </div>
+                {% if note.message %}
+                <div class="text-muted">{{ note.message }}</div>
+                {% endif %}
+                <div class="mt-2 d-flex gap-2">
+                    {% if note.ticket_id %}
+                    <a href="{{ url_for('tickets.detail', ticket_id=note.ticket_id) }}" class="btn btn-sm btn-outline-primary">
+                        View Ticket
+                    </a>
+                    {% endif %}
+                    {% if not note.is_read %}
+                    <form method="POST" action="{{ url_for('notifications.mark_read', notification_id=note.id) }}">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Mark Read</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No notifications yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

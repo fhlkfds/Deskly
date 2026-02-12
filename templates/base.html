@@ -3,10 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}School Inventory System{% endblock %}</title>
+    <title>{% block title %}{{ branding_app_name }}{% endblock %}</title>
+    {% if branding_favicon_url %}
+    <link rel="icon" href="{{ branding_favicon_url }}">
+    {% endif %}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    {% if branding_primary_color or branding_secondary_color or branding_accent_color %}
+    <style>
+        :root {
+            {% if branding_primary_color %}--bs-primary: {{ branding_primary_color }};{% endif %}
+            {% if branding_secondary_color %}--bs-secondary: {{ branding_secondary_color }};{% endif %}
+            {% if branding_accent_color %}--brand-accent: {{ branding_accent_color }};{% endif %}
+        }
+    </style>
+    {% endif %}
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -14,7 +26,12 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
             <a class="navbar-brand" href="{{ url_for('dashboard') }}">
-                <i class="bi bi-box-seam"></i> School Inventory
+                {% if branding_app_icon_url %}
+                <img src="{{ branding_app_icon_url }}" alt="App icon" width="24" height="24" class="me-2">
+                {% else %}
+                <i class="bi bi-box-seam"></i>
+                {% endif %}
+                {{ branding_app_name }}
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -35,21 +52,25 @@
                             <li><a class="dropdown-item" href="{{ url_for('assets.list_assets') }}">
                                 <i class="bi bi-box"></i> Browse Assets
                             </a></li>
-                            {% if current_user.role in ['admin', 'helpdesk'] %}
-                            <li><a class="dropdown-item" href="{{ url_for('assets.repair_assets') }}">
-                                <i class="bi bi-wrench-adjustable"></i> Repair Assets
-                            </a></li>
-                            {% endif %}
                             {% if current_user.role == 'admin' %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('assets.create') }}">
                                 <i class="bi bi-plus-circle"></i> Add Asset
                             </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('assets.import_assets') }}">
-                                <i class="bi bi-upload"></i> Import Assets
+                            {% endif %}
+                            {% if current_user.role in ['admin', 'helpdesk'] %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout') }}">
+                                <i class="bi bi-box-arrow-right"></i> Check Out
                             </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('assets.assets_template') }}">
-                                <i class="bi bi-download"></i> Download Template
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkin') }}">
+                                <i class="bi bi-box-arrow-in-left"></i> Check In
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.loaner_swap') }}">
+                                <i class="bi bi-arrow-left-right"></i> Loaner Swap
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('assets.repair_assets') }}">
+                                <i class="bi bi-wrench-adjustable"></i> Repair Assets
                             </a></li>
                             {% endif %}
                         </ul>
@@ -59,48 +80,91 @@
                             <i class="bi bi-arrow-left-right"></i> Checkouts
                         </a>
                         <ul class="dropdown-menu">
-                            {% if current_user.role in ['admin', 'helpdesk'] %}
-                            <li><a class="dropdown-item" href="{{ url_for('checkouts.fast_checkout') }}">
-                                <i class="bi bi-lightning-charge"></i> Fast Checkout
-                            </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('checkouts.fast_checkin') }}">
-                                <i class="bi bi-box-arrow-in-left"></i> Fast Check-In
-                            </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('checkouts.loaner_swap') }}">
-                                <i class="bi bi-arrow-left-right"></i> Loaner Swap
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout') }}">Check Out</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkin') }}">Check In</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('checkouts.history') }}">History</a></li>
                         </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('users.list_users') }}">
-                            <i class="bi bi-people"></i> Users
-                        </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('docs.index') }}">
                             <i class="bi bi-journal-text"></i> Documentation
                         </a>
                     </li>
+                    {% if can_access_tickets %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('reports.index') }}">
-                            <i class="bi bi-bar-chart"></i> Reports
+                        <a class="nav-link" href="{{ url_for('tickets.index') }}">
+                            <i class="bi bi-inbox"></i> Tickets
                         </a>
                     </li>
+                    {% endif %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-bar-chart"></i> Reporting
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('reports.audit') }}">
+                                <i class="bi bi-shield-check"></i> Audit
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('reports.flagged') }}">
+                                <i class="bi bi-flag"></i> Flagged
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('reports.report_center') }}">
+                                <i class="bi bi-bar-chart"></i> Reports
+                            </a></li>
+                        </ul>
+                    </li>
                     {% if current_user.is_admin() %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('settings.sync_settings') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="bi bi-gear"></i> Settings
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('settings.sync_settings') }}">
+                                <i class="bi bi-arrow-repeat"></i> Syncing
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.credential_settings') }}">
+                                <i class="bi bi-key"></i> Credential Management
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.branding_settings') }}">
+                                <i class="bi bi-palette"></i> Branding
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.logs_settings') }}">
+                                <i class="bi bi-shield-lock"></i> Logs
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('users.list_users') }}">
+                                <i class="bi bi-people"></i> Users
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.asset_settings') }}">
+                                <i class="bi bi-tags"></i> Assets
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.sso_settings') }}">
+                                <i class="bi bi-shield-check"></i> SSO
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.ticketing_settings') }}">
+                                <i class="bi bi-inbox"></i> Ticketing
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.import_settings') }}">
+                                <i class="bi bi-upload"></i> Import
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.misc_settings') }}">
+                                <i class="bi bi-sliders"></i> Misc
+                            </a></li>
+                        </ul>
                     </li>
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
+                    {% if current_user.is_authenticated %}
+                    <li class="nav-item">
+                        <a class="nav-link position-relative" href="{{ url_for('notifications.index') }}">
+                            <i class="bi bi-bell {% if unread_notifications %}text-danger{% endif %}"></i>
+                            {% if unread_notifications %}
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                {{ unread_notifications }}
+                            </span>
+                            {% endif %}
+                        </a>
+                    </li>
+                    {% endif %}
                     <li class="nav-item">
                         <button class="btn btn-link nav-link" id="darkModeToggle" title="Toggle Dark Mode">
                             <i class="bi bi-moon-stars-fill" id="darkModeIcon"></i>
@@ -108,10 +172,17 @@
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{ current_user.name }}
+                            {% if current_user.profile_picture_url %}
+                            <img src="{{ current_user.profile_picture_url }}" alt="Profile" width="24" height="24" class="rounded-circle me-1">
+                            {% else %}
+                            <i class="bi bi-person-circle"></i>
+                            {% endif %}
+                            {{ current_user.name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#">Profile</a></li>
+                            {% if current_user.role in ['admin', 'helpdesk'] %}
+                            <li><a class="dropdown-item" href="{{ url_for('users.profile') }}">Profile</a></li>
+                            {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Logout</a></li>
                         </ul>
@@ -158,7 +229,7 @@
         const htmlElement = document.documentElement;
 
         // Check for saved dark mode preference or default to light mode
-        const currentTheme = localStorage.getItem('theme') || 'light';
+        const currentTheme = localStorage.getItem('theme') || "{{ current_user.default_theme if current_user.is_authenticated and current_user.default_theme else 'light' }}";
         if (currentTheme === 'dark') {
             htmlElement.setAttribute('data-bs-theme', 'dark');
             darkModeIcon.classList.remove('bi-moon-stars-fill');

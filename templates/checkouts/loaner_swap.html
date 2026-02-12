@@ -30,21 +30,35 @@
                                 <div class="card-body">
                                     <div class="mb-3">
                                         <label for="broken_asset_id" class="form-label">Select Broken Asset <span class="text-danger">*</span></label>
-                                        <select class="form-select" id="broken_asset_id" name="broken_asset_id" required onchange="updateSwapInfo()">
-                                            <option value="">-- Select asset to check in --</option>
-                                            {% for asset in checked_out_assets %}
-                                            <option value="{{ asset.id }}"
-                                                    data-tag="{{ asset.asset_tag }}"
-                                                    data-name="{{ asset.name }}"
-                                                    data-type="{{ asset.type }}"
-                                                    data-checkout-to="{{ asset.current_checkout.checked_out_to if asset.current_checkout else '' }}">
-                                                {{ asset.asset_tag }} - {{ asset.name }}
-                                                {% if asset.current_checkout %}
-                                                ({{ asset.current_checkout.checked_out_to }})
-                                                {% endif %}
-                                            </option>
-                                            {% endfor %}
-                                        </select>
+                                        <div class="position-relative">
+                                            <input type="text"
+                                                   class="form-control"
+                                                   id="broken_asset_display"
+                                                   placeholder="Search broken assets"
+                                                   autocomplete="off"
+                                                   required>
+                                            <input type="hidden" id="broken_asset_id" name="broken_asset_id" required>
+                                            <div class="dropdown-menu w-100 p-0" id="broken_asset_menu" style="max-height: 260px; overflow-y: auto;">
+                                                {% for asset in checked_out_assets %}
+                                                <button type="button"
+                                                        class="dropdown-item asset-option"
+                                                        data-for="broken"
+                                                        data-id="{{ asset.id }}"
+                                                        data-label="{{ asset.asset_tag }} - {{ asset.name }}{% if asset.current_checkout %} | Out: {{ asset.current_checkout.checked_out_to }}{% endif %}"
+                                                        data-tag="{{ asset.asset_tag }}"
+                                                        data-name="{{ asset.name }}"
+                                                        data-type="{{ asset.type }}"
+                                                        data-checkout-to="{{ asset.current_checkout.checked_out_to if asset.current_checkout else '' }}"
+                                                        data-search="{{ (asset.asset_tag ~ ' ' ~ asset.name ~ ' ' ~ (asset.current_checkout.checked_out_to if asset.current_checkout else ''))|lower }}">
+                                                    {{ asset.asset_tag }} - {{ asset.name }}
+                                                    {% if asset.current_checkout %}
+                                                    ({{ asset.current_checkout.checked_out_to }})
+                                                    {% endif %}
+                                                </button>
+                                                {% endfor %}
+                                                <div class="dropdown-item text-muted d-none" id="broken_asset_empty">No matching assets</div>
+                                            </div>
+                                        </div>
                                         {% if not checked_out_assets %}
                                         <div class="alert alert-info mt-2 mb-0">
                                             No assets are currently checked out.
@@ -83,23 +97,32 @@
                                 <div class="card-body">
                                     <div class="mb-3">
                                         <label for="loaner_asset_id" class="form-label">Select Loaner <span class="text-danger">*</span></label>
-                                        <select class="form-select" id="loaner_asset_id" name="loaner_asset_id" required onchange="updateLoanerInfo()">
-                                            <option value="">-- Select loaner asset --</option>
-                                            {% for type in available_assets|map(attribute='type')|unique|list %}
-                                            <optgroup label="{{ type }}">
-                                                {% for asset in available_assets if asset.type == type %}
-                                                <option value="{{ asset.id }}"
+                                        <div class="position-relative">
+                                            <input type="text"
+                                                   class="form-control"
+                                                   id="loaner_asset_display"
+                                                   placeholder="Search loaner assets"
+                                                   autocomplete="off"
+                                                   required>
+                                            <input type="hidden" id="loaner_asset_id" name="loaner_asset_id" required>
+                                            <div class="dropdown-menu w-100 p-0" id="loaner_asset_menu" style="max-height: 260px; overflow-y: auto;">
+                                                {% for asset in available_assets %}
+                                                <button type="button"
+                                                        class="dropdown-item asset-option"
+                                                        data-for="loaner"
+                                                        data-id="{{ asset.id }}"
+                                                        data-label="{{ asset.asset_tag }} - {{ asset.name }} ({{ asset.condition }})"
                                                         data-tag="{{ asset.asset_tag }}"
                                                         data-name="{{ asset.name }}"
                                                         data-type="{{ asset.type }}"
-                                                        data-condition="{{ asset.condition }}">
-                                                    {{ asset.asset_tag }} - {{ asset.name }}
-                                                    ({{ asset.condition }})
-                                                </option>
+                                                        data-condition="{{ asset.condition }}"
+                                                        data-search="{{ (asset.asset_tag ~ ' ' ~ asset.name ~ ' ' ~ asset.type ~ ' ' ~ asset.condition)|lower }}">
+                                                    {{ asset.asset_tag }} - {{ asset.name }} ({{ asset.condition }})
+                                                </button>
                                                 {% endfor %}
-                                            </optgroup>
-                                            {% endfor %}
-                                        </select>
+                                                <div class="dropdown-item text-muted d-none" id="loaner_asset_empty">No matching assets</div>
+                                            </div>
+                                        </div>
                                         {% if not available_assets %}
                                         <div class="alert alert-danger mt-2 mb-0">
                                             No loaner assets are available!
@@ -174,16 +197,14 @@
 </div>
 
 <script>
-function updateSwapInfo() {
-    const brokenSelect = document.getElementById('broken_asset_id');
-    const selectedBroken = brokenSelect.options[brokenSelect.selectedIndex];
+function updateSwapInfo(selectedBroken) {
     const brokenInfo = document.getElementById('broken-info');
 
-    if (selectedBroken.value) {
-        document.getElementById('broken-tag').textContent = selectedBroken.getAttribute('data-tag') || '-';
-        document.getElementById('broken-name').textContent = selectedBroken.getAttribute('data-name') || '-';
-        document.getElementById('broken-type').textContent = selectedBroken.getAttribute('data-type') || '-';
-        document.getElementById('broken-checkout-to').textContent = selectedBroken.getAttribute('data-checkout-to') || '-';
+    if (selectedBroken && selectedBroken.dataset.id) {
+        document.getElementById('broken-tag').textContent = selectedBroken.dataset.tag || '-';
+        document.getElementById('broken-name').textContent = selectedBroken.dataset.name || '-';
+        document.getElementById('broken-type').textContent = selectedBroken.dataset.type || '-';
+        document.getElementById('broken-checkout-to').textContent = selectedBroken.dataset.checkoutTo || '-';
         brokenInfo.style.display = 'block';
     } else {
         brokenInfo.style.display = 'none';
@@ -193,16 +214,14 @@ function updateSwapInfo() {
     updateSwapSummary();
 }
 
-function updateLoanerInfo() {
-    const loanerSelect = document.getElementById('loaner_asset_id');
-    const selectedLoaner = loanerSelect.options[loanerSelect.selectedIndex];
+function updateLoanerInfo(selectedLoaner) {
     const loanerInfo = document.getElementById('loaner-info');
 
-    if (selectedLoaner.value) {
-        document.getElementById('loaner-tag').textContent = selectedLoaner.getAttribute('data-tag') || '-';
-        document.getElementById('loaner-name').textContent = selectedLoaner.getAttribute('data-name') || '-';
-        document.getElementById('loaner-type').textContent = selectedLoaner.getAttribute('data-type') || '-';
-        document.getElementById('loaner-condition').textContent = selectedLoaner.getAttribute('data-condition') || '-';
+    if (selectedLoaner && selectedLoaner.dataset.id) {
+        document.getElementById('loaner-tag').textContent = selectedLoaner.dataset.tag || '-';
+        document.getElementById('loaner-name').textContent = selectedLoaner.dataset.name || '-';
+        document.getElementById('loaner-type').textContent = selectedLoaner.dataset.type || '-';
+        document.getElementById('loaner-condition').textContent = selectedLoaner.dataset.condition || '-';
         loanerInfo.style.display = 'block';
     } else {
         loanerInfo.style.display = 'none';
@@ -216,13 +235,13 @@ function updateLoanerInfo() {
 function checkTypeMatch() {
     const brokenSelect = document.getElementById('broken_asset_id');
     const loanerSelect = document.getElementById('loaner_asset_id');
-    const selectedBroken = brokenSelect.options[brokenSelect.selectedIndex];
-    const selectedLoaner = loanerSelect.options[loanerSelect.selectedIndex];
+    const selectedBroken = document.querySelector('.asset-option.selected[data-for="broken"]');
+    const selectedLoaner = document.querySelector('.asset-option.selected[data-for="loaner"]');
     const warning = document.getElementById('swap-warning');
 
-    if (selectedBroken.value && selectedLoaner.value) {
-        const brokenType = selectedBroken.getAttribute('data-type');
-        const loanerType = selectedLoaner.getAttribute('data-type');
+    if (brokenSelect.value && loanerSelect.value && selectedBroken && selectedLoaner) {
+        const brokenType = selectedBroken.dataset.type;
+        const loanerType = selectedLoaner.dataset.type;
 
         if (brokenType !== loanerType) {
             warning.style.display = 'block';
@@ -249,24 +268,99 @@ function updateSubmitButton() {
 function updateSwapSummary() {
     const brokenSelect = document.getElementById('broken_asset_id');
     const loanerSelect = document.getElementById('loaner_asset_id');
-    const selectedBroken = brokenSelect.options[brokenSelect.selectedIndex];
-    const selectedLoaner = loanerSelect.options[loanerSelect.selectedIndex];
+    const selectedBroken = document.querySelector('.asset-option.selected[data-for="broken"]');
+    const selectedLoaner = document.querySelector('.asset-option.selected[data-for="loaner"]');
     const summary = document.getElementById('swap-summary');
 
-    if (selectedBroken.value && selectedLoaner.value) {
-        document.getElementById('summary-person').textContent = selectedBroken.getAttribute('data-checkout-to') || '-';
-        document.getElementById('summary-broken-tag').textContent = selectedBroken.getAttribute('data-tag') || '-';
-        document.getElementById('summary-loaner-tag').textContent = selectedLoaner.getAttribute('data-tag') || '-';
+    if (brokenSelect.value && loanerSelect.value && selectedBroken && selectedLoaner) {
+        document.getElementById('summary-person').textContent = selectedBroken.dataset.checkoutTo || '-';
+        document.getElementById('summary-broken-tag').textContent = selectedBroken.dataset.tag || '-';
+        document.getElementById('summary-loaner-tag').textContent = selectedLoaner.dataset.tag || '-';
         summary.style.display = 'block';
     } else {
         summary.style.display = 'none';
     }
 }
 
+function setupAssetSearch(type) {
+    const display = document.getElementById(type + '_asset_display');
+    const hidden = document.getElementById(type + '_asset_id');
+    const menu = document.getElementById(type + '_asset_menu');
+    const empty = document.getElementById(type + '_asset_empty');
+    if (!display || !hidden || !menu || !empty) return;
+
+    const options = Array.from(menu.querySelectorAll('.asset-option'));
+
+    function showMenu() {
+        menu.classList.add('show');
+    }
+
+    function hideMenu() {
+        menu.classList.remove('show');
+    }
+
+    function filterOptions() {
+        const term = display.value.trim().toLowerCase();
+        let visible = 0;
+        options.forEach(function(option) {
+            const text = option.dataset.search || '';
+            const matched = !term || text.includes(term);
+            option.classList.toggle('d-none', !matched);
+            if (matched) visible += 1;
+        });
+        empty.classList.toggle('d-none', visible !== 0);
+    }
+
+    display.addEventListener('focus', function() {
+        showMenu();
+        filterOptions();
+    });
+
+    display.addEventListener('click', function() {
+        showMenu();
+        filterOptions();
+    });
+
+    display.addEventListener('input', function() {
+        hidden.value = '';
+        options.forEach(option => option.classList.remove('selected'));
+        showMenu();
+        filterOptions();
+        updateSubmitButton();
+        updateSwapSummary();
+    });
+
+    options.forEach(function(option) {
+        option.addEventListener('click', function() {
+            options.forEach(opt => opt.classList.remove('selected'));
+            option.classList.add('selected');
+            display.value = option.dataset.label || option.textContent.trim();
+            hidden.value = option.dataset.id || '';
+            hideMenu();
+            if (type === 'broken') {
+                updateSwapInfo(option);
+            } else {
+                updateLoanerInfo(option);
+            }
+        });
+    });
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    updateSwapInfo();
-    updateLoanerInfo();
+    setupAssetSearch('broken');
+    setupAssetSearch('loaner');
+    document.addEventListener('click', function(event) {
+        ['broken', 'loaner'].forEach(function(type) {
+            const display = document.getElementById(type + '_asset_display');
+            const menu = document.getElementById(type + '_asset_menu');
+            if (!display || !menu) return;
+            const clickedInside = display.contains(event.target) || menu.contains(event.target);
+            if (!clickedInside) {
+                menu.classList.remove('show');
+            }
+        });
+    });
 });
 </script>
 {% endblock %}

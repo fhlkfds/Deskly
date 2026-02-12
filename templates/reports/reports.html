@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-bar-chart"></i> Reports</h2>
+        <p class="text-muted mb-0">Premade reports, custom reports, and device login logs.</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Premade Reports</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('reports.generate') }}">
+                    <div class="mb-3">
+                        <label for="report_type" class="form-label">Report Type</label>
+                        <select class="form-select" id="report_type" name="report_type" required>
+                            {% for key, label in premade_reports %}
+                            <option value="{{ key }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="output_format" class="form-label">Output Format</label>
+                        <select class="form-select" id="output_format" name="output_format" required>
+                            <option value="csv">CSV</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="delivery_method" class="form-label">Delivery</label>
+                        <select class="form-select" id="delivery_method" name="delivery_method" required>
+                            <option value="download">Download</option>
+                            <option value="email">Email</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 d-none" id="email_group">
+                        <label for="email_to" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email_to" name="email_to" placeholder="name@school.edu">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-arrow-down"></i> Run Report
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Custom Report</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('reports.generate') }}">
+                    <input type="hidden" name="report_type" value="custom_asset_fields">
+
+                    <div class="mb-3">
+                        <label class="form-label">Asset Fields</label>
+                        <div class="border rounded p-3" style="max-height: 240px; overflow-y: auto;">
+                            {% for field_key, field_label in asset_report_fields %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="field_{{ field_key }}" name="fields" value="{{ field_key }}"
+                                       {% if field_key in ['asset_tag', 'name', 'status', 'location'] %}checked{% endif %}>
+                                <label class="form-check-label" for="field_{{ field_key }}">{{ field_label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">Select the fields you want included in the report.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="date_field" class="form-label">Date Field</label>
+                        <select class="form-select" id="date_field" name="date_field">
+                            <option value="created_at">Created At</option>
+                            <option value="updated_at">Updated At</option>
+                            <option value="purchase_date">Purchase Date</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="output_format_custom" class="form-label">Output Format</label>
+                        <select class="form-select" id="output_format_custom" name="output_format" required>
+                            <option value="csv">CSV</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="delivery_method_custom" class="form-label">Delivery</label>
+                        <select class="form-select" id="delivery_method_custom" name="delivery_method" required>
+                            <option value="download">Download</option>
+                            <option value="email">Email</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 d-none" id="email_group_custom">
+                        <label for="email_to_custom" class="form-label">Email Address</label>
+                        <input type="email" class="form-control" id="email_to_custom" name="email_to" placeholder="name@school.edu">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-file-earmark-arrow-down"></i> Run Custom Report
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Google Admin Device Login Log</h5>
+    </div>
+    <div class="card-body">
+        {% if device_user_logs %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Observed</th>
+                        <th>Asset</th>
+                        <th>User Email</th>
+                        <th>Device Serial</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in device_user_logs %}
+                    <tr>
+                        <td><small>{{ log.observed_at.strftime('%Y-%m-%d %H:%M:%S') }}</small></td>
+                        <td>
+                            {% if log.asset %}
+                            {{ log.asset.asset_tag }} - {{ log.asset.name }}
+                            {% else %}
+                            {{ log.device_asset_tag or '-' }}
+                            {% endif %}
+                        </td>
+                        <td>{{ log.user_email or '-' }}</td>
+                        <td><code>{{ log.device_serial or '-' }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No device login logs yet. Run a Google Admin device sync to populate.</p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">Open Ticket Summary</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <h6>Open by Assignee</h6>
+                {% if open_by_assignee %}
+                <ul class="list-group">
+                    {% for name, count in open_by_assignee %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>{{ name }}</span>
+                        <span class="badge bg-primary">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No open tickets with assignees.</p>
+                {% endif %}
+            </div>
+            <div class="col-lg-4">
+                <h6>Open by Category</h6>
+                {% if open_by_category %}
+                <ul class="list-group">
+                    {% for category, count in open_by_category %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>{{ category or 'Uncategorized' }}</span>
+                        <span class="badge bg-primary">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No open tickets by category.</p>
+                {% endif %}
+            </div>
+            <div class="col-lg-4">
+                <h6>Tickets by Status</h6>
+                {% if open_by_status %}
+                <ul class="list-group">
+                    {% for status, count in open_by_status %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span>{{ status|title }}</span>
+                        <span class="badge bg-primary">{{ count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No tickets found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function toggleEmailGroup(selectId, groupId, inputId) {
+        const deliverySelect = document.getElementById(selectId);
+        const group = document.getElementById(groupId);
+        const input = document.getElementById(inputId);
+        if (!deliverySelect || !group || !input) return;
+
+        function syncVisibility() {
+            const needsEmail = deliverySelect.value === 'email';
+            group.classList.toggle('d-none', !needsEmail);
+            input.required = needsEmail;
+        }
+
+        deliverySelect.addEventListener('change', syncVisibility);
+        syncVisibility();
+    }
+
+    toggleEmailGroup('delivery_method', 'email_group', 'email_to');
+    toggleEmailGroup('delivery_method_custom', 'email_group_custom', 'email_to_custom');
+</script>
+{% endblock %}

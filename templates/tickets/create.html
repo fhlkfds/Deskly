@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}New Ticket - {{ branding_app_name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-plus-circle"></i> New Ticket</h2>
+        <p class="text-muted mb-0">Create a manual support ticket.</p>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('tickets.index') }}" class="btn btn-outline-secondary">Back to Tickets</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('tickets.create') }}">
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label for="subject" class="form-label">Subject</label>
+                    <input type="text" class="form-control" id="subject" name="subject" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="priority" class="form-label">Priority</label>
+                    <select class="form-select" id="priority" name="priority">
+                        <option value="low">Low</option>
+                        <option value="normal" selected>Normal</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="category" class="form-label">Category</label>
+                    <input class="form-control" id="category" name="category" list="categoryOptions" placeholder="Select or type a category">
+                    <datalist id="categoryOptions">
+                        {% for option in category_options %}
+                        <option value="{{ option }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="col-md-6">
+                    <label for="tags" class="form-label">Tags</label>
+                    <input class="form-control" id="tags" name="tags" list="tagOptions" placeholder="comma-separated tags">
+                    <datalist id="tagOptions">
+                        {% for tag in tag_options %}
+                        <option value="{{ tag }}"></option>
+                        {% endfor %}
+                    </datalist>
+                    <div class="form-text">Use commas to add multiple tags.</div>
+                </div>
+                <div class="col-md-6">
+                    <label for="requester_name" class="form-label">Requester Name</label>
+                    <input type="text" class="form-control" id="requester_name" name="requester_name">
+                </div>
+                <div class="col-md-6">
+                    <label for="requester_email" class="form-label">Requester Email</label>
+                    <input type="email" class="form-control" id="requester_email" name="requester_email" required>
+                </div>
+                <div class="col-12">
+                    <label for="body_text" class="form-label">Details</label>
+                    <textarea class="form-control" id="body_text" name="body_text" rows="6"></textarea>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Create Ticket
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

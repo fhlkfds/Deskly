@@ -193,14 +193,8 @@
                 <a href="{{ url_for('checkouts.fast_checkout') }}" class="btn btn-warning btn-lg mx-2 mb-2">
                     <i class="bi bi-lightning-charge"></i> Fast Checkout
                 </a>
-                <a href="{{ url_for('checkouts.checkout') }}" class="btn btn-primary btn-lg mx-2 mb-2">
-                    <i class="bi bi-box-arrow-right"></i> Check Out Asset
-                </a>
-                <a href="{{ url_for('checkouts.checkin') }}" class="btn btn-success btn-lg mx-2 mb-2">
-                    <i class="bi bi-box-arrow-in-left"></i> Check In Asset
-                </a>
-                <a href="{{ url_for('checkouts.loaner_swap') }}" class="btn btn-secondary btn-lg mx-2 mb-2">
-                    <i class="bi bi-arrow-left-right"></i> Loaner Swap
+                <a href="{{ url_for('checkouts.fast_checkin') }}" class="btn btn-success btn-lg mx-2 mb-2">
+                    <i class="bi bi-box-arrow-in-left"></i> Fast Check-In
                 </a>
                 {% endif %}
                 <a href="{{ url_for('assets.list_assets') }}" class="btn btn-info btn-lg mx-2 mb-2">

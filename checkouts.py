@@ -3,7 +3,9 @@ from flask_login import login_required, current_user
 from auth import roles_required
 from models import db, Asset, Checkout, User, RepairTicket
 from datetime import datetime, timedelta
+import re
 from breakage import record_damage_incident
+from audit_ledger import append_ledger_entry
 
 checkouts_bp = Blueprint('checkouts', __name__, url_prefix='/checkouts')
 
@@ -54,10 +56,32 @@ def checkout():
                 flash(f'Asset {asset.asset_tag} is not available for checkout.', 'danger')
                 return redirect(url_for('checkouts.checkout'))
 
+            checked_out_to = request.form.get('checked_out_to', '').strip()
+            if not checked_out_to:
+                flash('Please enter who the asset is checked out to.', 'danger')
+                return redirect(url_for('checkouts.checkout'))
+
+            matched_user = None
+            if '@' in checked_out_to:
+                matched_user = User.query.filter(db.func.lower(User.email) == checked_out_to.lower()).first()
+                if not matched_user:
+                    flash('No user found with that email. Create the user or enter a name instead.', 'warning')
+                    return redirect(url_for('checkouts.checkout'))
+            else:
+                is_tag_like = re.match(r'^[A-Za-z0-9-]{3,}$', checked_out_to) is not None
+                if is_tag_like:
+                    matched_user = User.query.filter(db.func.lower(User.asset_tag) == checked_out_to.lower()).first()
+                    if not matched_user:
+                        flash('No user found with that asset tag. Create the user or enter a name instead.', 'warning')
+                        return redirect(url_for('checkouts.checkout'))
+
+            if matched_user:
+                checked_out_to = matched_user.name
+
             # Create checkout record
             checkout_record = Checkout(
                 asset_id=asset.id,
-                checked_out_to=request.form['checked_out_to'],
+                checked_out_to=checked_out_to,
                 checked_out_by=current_user.id,
                 checkout_date=datetime.utcnow()
             )
@@ -73,6 +97,19 @@ def checkout():
             asset.updated_at = datetime.utcnow()
 
             db.session.add(checkout_record)
+            db.session.flush()
+            append_ledger_entry(
+                event_type='asset_checked_out',
+                entity_type='checkout',
+                entity_id=checkout_record.id,
+                actor_id=current_user.id,
+                payload={
+                    'asset_id': asset.id,
+                    'asset_tag': asset.asset_tag,
+                    'checked_out_to': checkout_record.checked_out_to,
+                    'expected_return_date': checkout_record.expected_return_date.isoformat() if checkout_record.expected_return_date else None,
+                }
+            )
             db.session.commit()
 
             flash(f'Asset {asset.asset_tag} checked out to {checkout_record.checked_out_to}!', 'success')
@@ -128,8 +165,21 @@ def checkin():
                     source='checkin',
                     notes=active_checkout.checkin_notes,
                     checkout_id=active_checkout.id
-                )
+                    )
 
+            append_ledger_entry(
+                event_type='asset_checked_in',
+                entity_type='checkout',
+                entity_id=active_checkout.id,
+                actor_id=current_user.id,
+                payload={
+                    'asset_id': asset.id,
+                    'asset_tag': asset.asset_tag,
+                    'checked_out_to': active_checkout.checked_out_to,
+                    'condition': active_checkout.checkin_condition,
+                    'notes': active_checkout.checkin_notes,
+                }
+            )
             db.session.commit()
 
             flash(f'Asset {asset.asset_tag} checked in successfully!', 'success')
@@ -251,6 +301,19 @@ def fast_checkout():
                 )
                 new_student.set_password('changeme123')  # Default password
                 db.session.add(new_student)
+                db.session.flush()
+                append_ledger_entry(
+                    event_type='user_created',
+                    entity_type='user',
+                    entity_id=new_student.id,
+                    actor_id=current_user.id,
+                    payload={
+                        'name': new_student.name,
+                        'email': new_student.email,
+                        'role': new_student.role,
+                        'source': 'fast_checkout',
+                    }
+                )
                 db.session.commit()
 
                 # Store student info in session
@@ -314,6 +377,19 @@ def fast_checkout():
                 asset.updated_at = datetime.utcnow()
 
                 db.session.add(checkout_record)
+                db.session.flush()
+                append_ledger_entry(
+                    event_type='asset_deployed',
+                    entity_type='checkout',
+                    entity_id=checkout_record.id,
+                    actor_id=current_user.id,
+                    payload={
+                        'asset_id': asset.id,
+                        'asset_tag': asset.asset_tag,
+                        'checked_out_to': checkout_record.checked_out_to,
+                        'expected_return_date': checkout_record.expected_return_date.isoformat() if checkout_record.expected_return_date else None,
+                    }
+                )
                 db.session.commit()
 
                 # Increment counter
@@ -455,6 +531,20 @@ def fast_checkin():
                         checkout_id=active_checkout.id
                     )
 
+                append_ledger_entry(
+                    event_type='asset_checked_in',
+                    entity_type='checkout',
+                    entity_id=active_checkout.id,
+                    actor_id=current_user.id,
+                    payload={
+                        'asset_id': asset.id,
+                        'asset_tag': asset.asset_tag,
+                        'checked_out_to': active_checkout.checked_out_to,
+                        'condition': condition,
+                        'notes': notes,
+                        'source': 'fast_checkin',
+                    }
+                )
                 db.session.commit()
 
                 # Increment counter
@@ -562,6 +652,20 @@ def loaner_swap():
             loaner_asset.updated_at = datetime.utcnow()
 
             db.session.add(loaner_checkout)
+            db.session.flush()
+            append_ledger_entry(
+                event_type='loaner_swap',
+                entity_type='checkout',
+                entity_id=loaner_checkout.id,
+                actor_id=current_user.id,
+                payload={
+                    'broken_asset_id': broken_asset.id,
+                    'broken_asset_tag': broken_asset.asset_tag,
+                    'loaner_asset_id': loaner_asset.id,
+                    'loaner_asset_tag': loaner_asset.asset_tag,
+                    'checked_out_to': active_checkout.checked_out_to,
+                }
+            )
             db.session.commit()
 
             flash(f'✓ Swap completed! {broken_asset.asset_tag} (broken) checked in → {loaner_asset.asset_tag} (loaner) checked out to {active_checkout.checked_out_to}', 'success')

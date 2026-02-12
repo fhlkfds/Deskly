@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+import json
+from datetime import datetime, timezone
 
 from google.oauth2 import service_account
 
@@ -11,6 +12,7 @@ from models import (
     GoogleAdminDeviceModelMapping,
     GoogleAdminSyncSchedule,
     GoogleAdminSyncLog,
+    GoogleAdminDeviceUserLog,
 )
 from config import Config
 
@@ -212,6 +214,20 @@ class GoogleAdminUserSync:
                 break
         return devices
 
+    @staticmethod
+    def _parse_rfc3339(value):
+        if not value:
+            return None
+        try:
+            if value.endswith('Z'):
+                value = value[:-1] + '+00:00'
+            parsed = datetime.fromisoformat(value)
+            if parsed.tzinfo:
+                parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+            return parsed
+        except ValueError:
+            return None
+
     def sync_device_ous(self, trigger_type='manual'):
         devices_processed = 0
         devices_updated = 0
@@ -229,6 +245,14 @@ class GoogleAdminUserSync:
                 ou_path = (device.get('orgUnitPath') or '').strip()
                 model = (device.get('model') or '').strip()
                 annotated_asset_id = (device.get('annotatedAssetId') or '').strip()
+                recent_users = device.get('recentUsers') or []
+                recent_users_json = json.dumps(recent_users, sort_keys=True) if recent_users else None
+                last_user_email = ''
+                if recent_users:
+                    last_user_email = (recent_users[0].get('email') or '').strip()
+                if not last_user_email:
+                    last_user_email = (device.get('lastKnownUser') or '').strip()
+                last_sync_at = self._parse_rfc3339(device.get('lastSync'))
 
                 devices_processed += 1
 
@@ -253,6 +277,34 @@ class GoogleAdminUserSync:
                 if mapped_group and (asset.device_group or '') != mapped_group:
                     asset.device_group = mapped_group
                     changed = True
+
+                prev_last_user = asset.google_admin_last_user_email or ''
+                prev_recent_users = asset.google_admin_recent_users_json or ''
+
+                if prev_last_user != last_user_email:
+                    asset.google_admin_last_user_email = last_user_email or None
+                    changed = True
+                if prev_recent_users != (recent_users_json or ''):
+                    asset.google_admin_recent_users_json = recent_users_json
+                    changed = True
+                if asset.google_admin_last_user_seen_at != last_sync_at and last_sync_at:
+                    asset.google_admin_last_user_seen_at = last_sync_at
+                    changed = True
+                if asset.google_admin_last_sync_at != last_sync_at and last_sync_at:
+                    asset.google_admin_last_sync_at = last_sync_at
+                    changed = True
+
+                if last_user_email and (prev_last_user != last_user_email or prev_recent_users != (recent_users_json or '')):
+                    observed_at = last_sync_at or datetime.utcnow()
+                    db.session.add(GoogleAdminDeviceUserLog(
+                        asset_id=asset.id,
+                        user_email=last_user_email,
+                        observed_at=observed_at,
+                        device_serial=serial or None,
+                        device_asset_tag=annotated_asset_id or None,
+                        recent_users_json=recent_users_json,
+                        last_sync_at=last_sync_at
+                    ))
 
                 if changed:
                     devices_updated += 1

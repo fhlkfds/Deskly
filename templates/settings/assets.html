@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Asset Settings - School Inventory System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-tags"></i> Asset Settings</h2>
+        <p class="text-muted mb-0">Configure asset tags, lists, and default options.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Asset Tag Auto-Increment</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('settings.update_asset_settings') }}">
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="asset_tag_auto_increment" name="asset_tag_auto_increment"
+                       {% if asset_tag_auto_increment %}checked{% endif %}>
+                <label class="form-check-label" for="asset_tag_auto_increment">
+                    Enable auto-increment asset tags
+                </label>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                    <label for="asset_tag_prefix" class="form-label">Prefix</label>
+                    <input type="text" class="form-control" id="asset_tag_prefix" name="asset_tag_prefix"
+                           value="{{ asset_tag_prefix }}" placeholder="AST-">
+                </div>
+                <div class="col-md-4">
+                    <label for="asset_tag_next_number" class="form-label">Next Number</label>
+                    <input type="number" class="form-control" id="asset_tag_next_number" name="asset_tag_next_number"
+                           value="{{ asset_tag_next_number }}" min="1">
+                </div>
+                <div class="col-md-4">
+                    <label for="asset_tag_padding" class="form-label">Zero Padding</label>
+                    <input type="number" class="form-control" id="asset_tag_padding" name="asset_tag_padding"
+                           value="{{ asset_tag_padding }}" min="0" max="10">
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="asset_types_text" class="form-label">Asset Types (one per line)</label>
+                    <textarea class="form-control" id="asset_types_text" name="asset_types_text" rows="6">{{ asset_types_text }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label for="asset_categories_text" class="form-label">Asset Categories (one per line)</label>
+                    <textarea class="form-control" id="asset_categories_text" name="asset_categories_text" rows="6">{{ asset_categories_text }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label for="asset_statuses_text" class="form-label">Asset Statuses (one per line)</label>
+                    <textarea class="form-control" id="asset_statuses_text" name="asset_statuses_text" rows="6">{{ asset_statuses_text }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label for="asset_conditions_text" class="form-label">Asset Conditions (one per line)</label>
+                    <textarea class="form-control" id="asset_conditions_text" name="asset_conditions_text" rows="6">{{ asset_conditions_text }}</textarea>
+                </div>
+                <div class="col-md-6">
+                    <label for="asset_locations_text" class="form-label">Locations (one per line)</label>
+                    <textarea class="form-control" id="asset_locations_text" name="asset_locations_text" rows="6">{{ asset_locations_text }}</textarea>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save Asset Settings
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

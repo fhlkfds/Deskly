@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}IT Tickets - {{ branding_app_name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-inbox"></i> IT Tickets</h2>
+        <p class="text-muted mb-0">Inbox view for email-driven support tickets.</p>
+    </div>
+    <div class="col text-end">
+        <a href="{{ url_for('tickets.create') }}" class="btn btn-outline-primary me-2">
+            <i class="bi bi-plus-circle"></i> New Ticket
+        </a>
+        {% if current_user.role in ['admin', 'helpdesk'] %}
+        <form method="POST" action="{{ url_for('tickets.import_gmail') }}" class="d-inline">
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-envelope-arrow-down"></i> Import from Gmail
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('tickets.index') }}" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label for="q" class="form-label">Search</label>
+                <input type="text" class="form-control" id="q" name="q" value="{{ query_text or '' }}"
+                       placeholder="Ticket ID, title, or description">
+            </div>
+            <div class="col-md-2">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="" {% if not status %}selected{% endif %}>All</option>
+                    {% for option in status_options %}
+                    <option value="{{ option }}" {% if status == option %}selected{% endif %}>{{ option|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="assignee_id" class="form-label">Assignee</label>
+                <select class="form-select" id="assignee_id" name="assignee_id">
+                    <option value="" {% if not assignee_id %}selected{% endif %}>All</option>
+                    {% for user in assignees %}
+                    <option value="{{ user.id }}" {% if assignee_id == user.id %}selected{% endif %}>{{ user.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="priority" class="form-label">Priority</label>
+                <select class="form-select" id="priority" name="priority">
+                    <option value="" {% if not priority %}selected{% endif %}>All</option>
+                    {% for option in priority_options %}
+                    <option value="{{ option }}" {% if priority == option %}selected{% endif %}>{{ option|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="category" class="form-label">Category</label>
+                <select class="form-select" id="category" name="category">
+                    <option value="" {% if not category %}selected{% endif %}>All</option>
+                    {% for option in category_options %}
+                    <option value="{{ option }}" {% if category == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label for="tag" class="form-label">Tag</label>
+                <select class="form-select" id="tag" name="tag">
+                    <option value="" {% if not tag %}selected{% endif %}>All</option>
+                    {% for option in tag_options %}
+                    <option value="{{ option }}" {% if tag == option %}selected{% endif %}>{{ option|capitalize }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-outline-primary">
+                    <i class="bi bi-filter"></i> Filter
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        {% if tickets %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th>Requester</th>
+                        <th>Status</th>
+                        <th>Source</th>
+                        <th>Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ticket in tickets %}
+                    <tr>
+                        <td>
+                            <div>
+                                <a href="{{ url_for('tickets.detail', ticket_id=ticket.id) }}">{{ ticket.subject }}</a>
+                            </div>
+                            <small class="text-muted">{{ ticket.ticket_code or ('#' ~ ticket.id) }}</small>
+                        </td>
+                        <td>
+                            <div>{{ ticket.requester_name or ticket.requester_email }}</div>
+                            <small class="text-muted">{{ ticket.requester_email }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if ticket.status == 'closed' %}secondary{% elif ticket.status == 'triage' %}warning{% else %}success{% endif %}">
+                                {{ ticket.status|title }}
+                            </span>
+                        </td>
+                        <td class="text-muted">{{ ticket.source|title }}</td>
+                        <td><small>{{ ticket.updated_at.strftime('%Y-%m-%d %H:%M') }}</small></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No tickets found yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

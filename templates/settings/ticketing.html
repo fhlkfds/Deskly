@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Ticketing - {{ branding_app_name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-inbox"></i> Ticketing</h2>
+        <p class="text-muted mb-0">Control ticket visibility and Gmail intake.</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Visibility Permissions</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('settings.update_ticketing_settings') }}">
+            <div class="row g-3">
+                <div class="col-md-12">
+                    <label class="form-label">Who can access tickets</label>
+                    <div class="d-flex flex-wrap gap-3">
+                        {% for role in ['admin', 'helpdesk', 'staff', 'teacher', 'student'] %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="role_{{ role }}" name="ticket_visibility_roles" value="{{ role }}"
+                                   {% if role in ticket_visibility_roles %}checked{% endif %}>
+                            <label class="form-check-label" for="role_{{ role }}">{{ role|title }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save Ticketing Settings
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Gmail Intake</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('settings.update_ticketing_settings') }}">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ticketing_gmail_enabled" name="ticketing_gmail_enabled"
+                               {% if ticketing_gmail_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="ticketing_gmail_enabled">Enable Gmail intake</label>
+                    </div>
+                    <div class="form-text">When enabled, new emails become tickets with subject/body copied and sender as the requester.</div>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Gmail delegated user</label>
+                    <input type="text" class="form-control" value="{{ config.GMAIL_DELEGATED_USER if config else '' }}" disabled>
+                    <div class="form-text">Set in <code>.env</code> as <code>GMAIL_DELEGATED_USER</code>.</div>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Gmail credentials file</label>
+                    <input type="text" class="form-control" value="{{ config.GMAIL_CREDENTIALS_FILE if config else '' }}" disabled>
+                    <div class="form-text">Set in <code>.env</code> as <code>GMAIL_CREDENTIALS_FILE</code>.</div>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Gmail import query</label>
+                    <input type="text" class="form-control" value="{{ config.GMAIL_IMPORT_QUERY if config else '' }}" disabled>
+                    <div class="form-text">Set in <code>.env</code> as <code>GMAIL_IMPORT_QUERY</code>.</div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Max messages per poll</label>
+                    <input type="text" class="form-control" value="{{ config.GMAIL_IMPORT_MAX_RESULTS if config else '' }}" disabled>
+                    <div class="form-text">Set in <code>.env</code> as <code>GMAIL_IMPORT_MAX_RESULTS</code>.</div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save Ticketing Settings
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

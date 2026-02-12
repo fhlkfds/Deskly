@@ -20,13 +20,16 @@ from models import (
     OverdueAuditSweep,
     OverdueAuditSweepItem,
     OverdueAuditSweepScanLog,
+    GoogleAdminDeviceUserLog,
     REPAIR_STATUS_LABELS,
+    Ticket,
 )
 from audit_snapshot import (
     build_audit_snapshot_bundle,
     send_snapshot_email,
     create_snapshot_log,
     get_or_create_snapshot_schedule,
+    handle_snapshot_artifacts,
 )
 
 reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
@@ -59,6 +62,21 @@ ASSET_REPORT_FIELDS = [
     ('condition', 'Condition'),
     ('repeat_breakage_flag', 'Repeat Breakage Flag'),
     ('notes', 'Notes'),
+    ('warranty_vendor', 'Warranty Vendor'),
+    ('warranty_end_date', 'Warranty End Date'),
+    ('warranty_notes', 'Warranty Notes'),
+    ('software_name', 'Software Name'),
+    ('license_key', 'License Key'),
+    ('license_seats', 'License Seats'),
+    ('license_expires_on', 'License Expires On'),
+    ('license_assigned_to', 'License Assigned To'),
+    ('accessory_type', 'Accessory Type'),
+    ('accessory_compatibility', 'Accessory Compatibility'),
+    ('accessory_notes', 'Accessory Notes'),
+    ('toner_model', 'Toner Model'),
+    ('toner_compatible_printer', 'Toner Compatible Printer'),
+    ('toner_quantity', 'Toner Quantity'),
+    ('toner_reorder_threshold', 'Toner Reorder Threshold'),
     ('google_sheets_row_id', 'Google Sheets Row ID'),
     ('created_at', 'Created At'),
     ('updated_at', 'Updated At'),
@@ -272,9 +290,13 @@ def _build_escalation_evidence(entity_type, entity_id):
 @login_required
 @roles_required('admin', 'helpdesk', 'staff')
 def index():
-    flagged_assets = Asset.query.filter_by(repeat_breakage_flag=True).order_by(Asset.asset_tag).all()
-    flagged_users = User.query.filter_by(repeat_breakage_flag=True).order_by(User.name).all()
-    escalation_cases = EscalationCase.query.order_by(EscalationCase.updated_at.desc()).limit(50).all()
+    return redirect(url_for('reports.audit'))
+
+
+@reports_bp.route('/audit')
+@login_required
+@roles_required('admin', 'helpdesk', 'staff')
+def audit():
     snapshot_logs = AuditSnapshotLog.query.order_by(AuditSnapshotLog.generated_at.desc()).limit(20).all()
     snapshot_schedule = get_or_create_snapshot_schedule()
     selected_sweep_id = request.args.get('sweep_id', type=int)
@@ -300,13 +322,7 @@ def index():
 
     recent_sweeps = OverdueAuditSweep.query.order_by(OverdueAuditSweep.generated_at.desc()).limit(20).all()
     return render_template(
-        'reports/index.html',
-        premade_reports=PREMADE_REPORTS,
-        asset_report_fields=ASSET_REPORT_FIELDS,
-        flagged_assets=flagged_assets,
-        flagged_users=flagged_users,
-        escalation_cases=escalation_cases,
-        escalation_statuses=ESCALATION_STATUSES,
+        'reports/audit.html',
         snapshot_logs=snapshot_logs,
         snapshot_schedule=snapshot_schedule,
         selected_sweep=selected_sweep,
@@ -315,6 +331,56 @@ def index():
         recent_sweeps=recent_sweeps,
         sweep_pending_count=pending_count,
         sweep_verified_count=verified_count,
+    )
+
+
+@reports_bp.route('/flagged')
+@login_required
+@roles_required('admin', 'helpdesk', 'staff')
+def flagged():
+    flagged_assets = Asset.query.filter_by(repeat_breakage_flag=True).order_by(Asset.asset_tag).all()
+    flagged_users = User.query.filter_by(repeat_breakage_flag=True).order_by(User.name).all()
+    escalation_cases = EscalationCase.query.order_by(EscalationCase.updated_at.desc()).limit(50).all()
+    return render_template(
+        'reports/flagged.html',
+        flagged_assets=flagged_assets,
+        flagged_users=flagged_users,
+        escalation_cases=escalation_cases,
+        escalation_statuses=ESCALATION_STATUSES,
+    )
+
+
+@reports_bp.route('/reports')
+@login_required
+@roles_required('admin', 'helpdesk', 'staff')
+def report_center():
+    device_user_logs = GoogleAdminDeviceUserLog.query.order_by(
+        GoogleAdminDeviceUserLog.observed_at.desc()
+    ).limit(50).all()
+    open_by_assignee = db.session.query(
+        User.name,
+        db.func.count(Ticket.id)
+    ).join(User, Ticket.assigned_to_id == User.id).filter(
+        Ticket.status == 'open'
+    ).group_by(User.name).order_by(db.func.count(Ticket.id).desc()).all()
+    open_by_category = db.session.query(
+        Ticket.category,
+        db.func.count(Ticket.id)
+    ).filter(
+        Ticket.status == 'open'
+    ).group_by(Ticket.category).order_by(db.func.count(Ticket.id).desc()).all()
+    open_by_status = db.session.query(
+        Ticket.status,
+        db.func.count(Ticket.id)
+    ).group_by(Ticket.status).order_by(db.func.count(Ticket.id).desc()).all()
+    return render_template(
+        'reports/reports.html',
+        premade_reports=PREMADE_REPORTS,
+        asset_report_fields=ASSET_REPORT_FIELDS,
+        device_user_logs=device_user_logs,
+        open_by_assignee=open_by_assignee,
+        open_by_category=open_by_category,
+        open_by_status=open_by_status,
     )
 
 
@@ -328,7 +394,7 @@ def escalate():
 
     if entity_type not in {'asset', 'user'} or not entity_id:
         flash('Invalid escalation request.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.flagged'))
 
     try:
         existing = EscalationCase.query.filter_by(
@@ -338,7 +404,7 @@ def escalate():
         ).filter(EscalationCase.status != 'resolved').first()
         if existing:
             flash('An open escalation already exists for this record.', 'warning')
-            return redirect(url_for('reports.index'))
+            return redirect(url_for('reports.flagged'))
 
         evidence = _build_escalation_evidence(entity_type, entity_id)
         case = EscalationCase(
@@ -357,7 +423,7 @@ def escalate():
         db.session.rollback()
         flash(f'Failed to create escalation: {str(exc)}', 'danger')
 
-    return redirect(url_for('reports.index'))
+    return redirect(url_for('reports.flagged'))
 
 
 @reports_bp.route('/escalation/<int:case_id>/status', methods=['POST'])
@@ -368,13 +434,13 @@ def update_escalation_status(case_id):
     valid_statuses = {k for k, _ in ESCALATION_STATUSES}
     if status not in valid_statuses:
         flash('Invalid escalation status.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.flagged'))
 
     case = EscalationCase.query.get_or_404(case_id)
     case.status = status
     db.session.commit()
     flash('Escalation status updated.', 'success')
-    return redirect(url_for('reports.index'))
+    return redirect(url_for('reports.flagged'))
 
 
 @reports_bp.route('/audit-snapshot/generate', methods=['POST'])
@@ -387,10 +453,15 @@ def generate_audit_snapshot():
     filename = f'audit_snapshot_{timestamp}.zip'
 
     try:
-        zip_bytes, manifest_sha = build_audit_snapshot_bundle()
+        zip_bytes, manifest_sha, manifest = build_audit_snapshot_bundle()
     except Exception as exc:
         flash(f'Failed to build audit snapshot: {str(exc)}', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.audit'))
+
+    artifacts = handle_snapshot_artifacts(zip_bytes, manifest_sha, manifest, filename)
+    artifact_message = ''
+    if artifacts.get('errors'):
+        artifact_message = f" Storage warnings: {'; '.join(artifacts['errors'])}"
 
     if delivery_method == 'download':
         create_snapshot_log(
@@ -399,7 +470,7 @@ def generate_audit_snapshot():
             filename=filename,
             manifest_sha256=manifest_sha,
             status='success',
-            message='Manual snapshot downloaded.',
+            message=f'Manual snapshot downloaded.{artifact_message}',
             recipient_email='',
             created_by=current_user.id
         )
@@ -413,7 +484,7 @@ def generate_audit_snapshot():
     if delivery_method == 'email':
         if not email_to:
             flash('Email address is required for snapshot email delivery.', 'danger')
-            return redirect(url_for('reports.index'))
+            return redirect(url_for('reports.audit'))
         try:
             send_snapshot_email(email_to, zip_bytes, filename)
             create_snapshot_log(
@@ -422,7 +493,7 @@ def generate_audit_snapshot():
                 filename=filename,
                 manifest_sha256=manifest_sha,
                 status='success',
-                message='Manual snapshot emailed.',
+                message=f'Manual snapshot emailed.{artifact_message}',
                 recipient_email=email_to,
                 created_by=current_user.id
             )
@@ -439,10 +510,10 @@ def generate_audit_snapshot():
                 created_by=current_user.id
             )
             flash(f'Email delivery failed: {str(exc)}', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.audit'))
 
     flash('Invalid snapshot delivery method.', 'danger')
-    return redirect(url_for('reports.index'))
+    return redirect(url_for('reports.audit'))
 
 
 @reports_bp.route('/audit-snapshot/schedule', methods=['POST'])
@@ -458,19 +529,19 @@ def update_audit_snapshot_schedule():
 
     if frequency not in {'daily', 'weekly'}:
         flash('Invalid snapshot schedule frequency.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.audit'))
     if hour_utc is None or minute_utc is None:
         flash('Hour and minute are required for snapshot schedule.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.audit'))
     if hour_utc < 0 or hour_utc > 23 or minute_utc < 0 or minute_utc > 59:
         flash('Snapshot schedule time is invalid.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.audit'))
     if frequency == 'weekly' and (weekday_utc is None or weekday_utc < 0 or weekday_utc > 6):
         flash('Snapshot schedule weekday is invalid.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.audit'))
     if enabled and not recipient_email:
         flash('Recipient email is required when snapshot schedule is enabled.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.audit'))
 
     schedule = get_or_create_snapshot_schedule()
     schedule.enabled = enabled
@@ -482,7 +553,7 @@ def update_audit_snapshot_schedule():
     db.session.commit()
 
     flash('Audit snapshot schedule saved.', 'success')
-    return redirect(url_for('reports.index'))
+    return redirect(url_for('reports.audit'))
 
 
 @reports_bp.route('/overdue-sweep/generate', methods=['POST'])
@@ -492,7 +563,7 @@ def generate_overdue_sweep():
     period_type = request.form.get('period_type', 'monthly').strip().lower()
     if period_type not in {'monthly', 'quarterly'}:
         flash('Invalid period type.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.audit'))
 
     now = datetime.utcnow()
     if period_type == 'monthly':
@@ -534,7 +605,7 @@ def generate_overdue_sweep():
 
     db.session.commit()
     flash(f'Overdue audit sweep created with {len(overdue_rows)} item(s).', 'success')
-    return redirect(url_for('reports.index', sweep_id=sweep.id))
+    return redirect(url_for('reports.audit', sweep_id=sweep.id))
 
 
 @reports_bp.route('/overdue-sweep/<int:sweep_id>/scan', methods=['POST'])
@@ -545,7 +616,7 @@ def scan_overdue_sweep_item(sweep_id):
     sweep = OverdueAuditSweep.query.get_or_404(sweep_id)
     if not scanned_input:
         flash('Enter an asset tag to scan.', 'warning')
-        return redirect(url_for('reports.index', sweep_id=sweep.id))
+        return redirect(url_for('reports.audit', sweep_id=sweep.id))
 
     item = sweep.items.filter(
         db.func.lower(OverdueAuditSweepItem.asset_tag) == scanned_input.lower(),
@@ -585,7 +656,7 @@ def scan_overdue_sweep_item(sweep_id):
         db.session.commit()
         flash('No pending overdue item matched that scan.', 'warning')
 
-    return redirect(url_for('reports.index', sweep_id=sweep.id))
+    return redirect(url_for('reports.audit', sweep_id=sweep.id))
 
 
 @reports_bp.route('/overdue-sweep/<int:sweep_id>/list.csv')
@@ -646,7 +717,7 @@ def generate():
         report_data = _build_report(report_type, request.form)
     except Exception as exc:
         flash(f'Failed to build report: {str(exc)}', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.report_center'))
 
     if output_format == 'csv':
         file_bytes = _build_csv_bytes(report_data)
@@ -657,12 +728,12 @@ def generate():
             file_bytes = _build_pdf_bytes(report_data)
         except Exception as exc:
             flash(str(exc), 'danger')
-            return redirect(url_for('reports.index'))
+            return redirect(url_for('reports.report_center'))
         mime_type = 'application/pdf'
         extension = 'pdf'
     else:
         flash('Invalid output format.', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.report_center'))
 
     timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
     filename = f"{report_type}_{timestamp}.{extension}"
@@ -678,13 +749,13 @@ def generate():
     if delivery_method == 'email':
         if not email_to:
             flash('Email address is required for email delivery.', 'danger')
-            return redirect(url_for('reports.index'))
+            return redirect(url_for('reports.report_center'))
         try:
             _send_report_email(email_to, filename, mime_type, file_bytes, report_data['title'])
             flash(f'Report emailed to {email_to}.', 'success')
         except Exception as exc:
             flash(f'Email delivery failed: {str(exc)}', 'danger')
-        return redirect(url_for('reports.index'))
+        return redirect(url_for('reports.report_center'))
 
     flash('Invalid delivery method.', 'danger')
-    return redirect(url_for('reports.index'))
+    return redirect(url_for('reports.report_center'))
