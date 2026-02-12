@@ -16,6 +16,7 @@
     </div>
     <div class="card-body">
         <form method="POST" action="{{ url_for('settings.update_ticketing_settings') }}">
+            <input type="hidden" name="ticketing_visibility_submit" value="1">
             <div class="row g-3">
                 <div class="col-md-12">
                     <label class="form-label">Who can access tickets</label>
@@ -39,12 +40,74 @@
     </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Reopen Rules (Simple)</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('settings.update_ticketing_settings') }}">
+            <input type="hidden" name="ticketing_reopen_submit" value="1">
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="ticket_reopen_agent_admin_enabled" name="ticket_reopen_agent_admin_enabled"
+                               {% if ticket_reopen_agent_admin_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="ticket_reopen_agent_admin_enabled">
+                            Agent/Admin can reopen Closed
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="ticket_reopen_requester_comment_enabled" name="ticket_reopen_requester_comment_enabled"
+                               {% if ticket_reopen_requester_comment_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="ticket_reopen_requester_comment_enabled">
+                            Requester comment can move from Resolved/Closed back to Waiting/New (optional)
+                        </label>
+                    </div>
+                    <div class="form-text">In this workflow, requester comment auto-reopen sets status to <code>waiting</code>.</div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save Reopen Rules
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Ticket Templates</h5>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('settings.update_ticketing_settings') }}">
+            <input type="hidden" name="ticketing_templates_submit" value="1">
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="ticket_templates_enabled" name="ticket_templates_enabled"
+                               {% if ticket_templates_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="ticket_templates_enabled">Enable ticket templates on new ticket form</label>
+                    </div>
+                    <div class="form-text">When enabled, agents can choose a prefilled template while creating a ticket.</div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-save"></i> Save Template Settings
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header">
         <h5 class="mb-0">Gmail Intake</h5>
     </div>
     <div class="card-body">
         <form method="POST" action="{{ url_for('settings.update_ticketing_settings') }}">
+            <input type="hidden" name="ticketing_gmail_submit" value="1">
             <div class="row g-3">
                 <div class="col-md-4">
                     <div class="form-check form-switch">

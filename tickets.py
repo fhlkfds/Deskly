@@ -49,6 +49,40 @@ TAG_KEYWORDS = {
     'wifi': ['wifi', 'wireless'],
 }
 
+TICKET_STATUS_OPTIONS = ['new', 'waiting', 'open', 'triage', 'resolved', 'closed']
+TICKET_REOPEN_SOURCE_STATUSES = {'resolved', 'closed'}
+TICKET_REOPEN_TARGET_STATUSES = {'new', 'waiting', 'open', 'triage'}
+TICKET_AGENT_ADMIN_REOPEN_ROLES = {'admin', 'helpdesk', 'staff'}
+DEFAULT_TICKET_TEMPLATES = [
+    {
+        'id': 'device_not_working',
+        'name': 'Device Not Working',
+        'subject': 'Device issue - needs troubleshooting',
+        'body': 'Device: \nAsset Tag: \nIssue started: \nWhat happens: \nSteps already tried: ',
+        'priority': 'normal',
+        'category': 'Hardware',
+        'tags': 'broken,hardware',
+    },
+    {
+        'id': 'account_access',
+        'name': 'Account / Access Issue',
+        'subject': 'Account access issue',
+        'body': 'Account email: \nSystem/App: \nError message: \nRequested access level: ',
+        'priority': 'normal',
+        'category': 'Access',
+        'tags': 'login,account,access',
+    },
+    {
+        'id': 'network_connectivity',
+        'name': 'Network / WiFi Issue',
+        'subject': 'Network connectivity problem',
+        'body': 'Location: \nDevice type: \nNetwork name: \nSymptoms: \nTime first noticed: ',
+        'priority': 'normal',
+        'category': 'Network',
+        'tags': 'network,wifi',
+    },
+]
+
 
 def _get_setting(key, default=''):
     setting = AppSetting.query.get(key)
@@ -163,6 +197,28 @@ def _resolve_mentions(tokens):
 
 def _ticketing_gmail_enabled():
     return _get_setting('ticketing_gmail_enabled', 'false') == 'true'
+
+
+def _ticket_reopen_agent_admin_enabled():
+    return _get_setting('ticket_reopen_agent_admin_enabled', 'true') == 'true'
+
+
+def _ticket_reopen_requester_comment_enabled():
+    return _get_setting('ticket_reopen_requester_comment_enabled', 'false') == 'true'
+
+
+def _ticket_templates_enabled():
+    return _get_setting('ticket_templates_enabled', 'false') == 'true'
+
+
+def _ticket_template_map():
+    return {template['id']: template for template in DEFAULT_TICKET_TEMPLATES}
+
+
+def _is_requester_commenter(ticket):
+    requester_email = (ticket.requester_email or '').strip().lower()
+    actor_email = (getattr(current_user, 'email', '') or '').strip().lower()
+    return bool(requester_email and actor_email and requester_email == actor_email)
 
 
 def _import_gmail_messages():
@@ -392,7 +448,7 @@ def index():
         category_options=category_options,
         tag_options=tag_options,
         priority_options=['low', 'normal', 'high'],
-        status_options=['open', 'triage', 'closed'],
+        status_options=TICKET_STATUS_OPTIONS,
     )
 
 
@@ -400,7 +456,11 @@ def index():
 @login_required
 def create():
     _ensure_ticket_access()
+    templates_enabled = _ticket_templates_enabled()
+    template_map = _ticket_template_map()
     if request.method == 'POST':
+        selected_template_id = request.form.get('ticket_template_id', '').strip()
+        selected_template = template_map.get(selected_template_id) if templates_enabled else None
         subject = request.form.get('subject', '').strip()
         requester_email = request.form.get('requester_email', '').strip()
         requester_name = request.form.get('requester_name', '').strip()
@@ -409,11 +469,27 @@ def create():
         category = request.form.get('category', '').strip()
         tags = request.form.get('tags', '').split(',')
 
+        # Server-side fallback if template option is selected but fields were not populated client-side.
+        if selected_template:
+            subject = subject or selected_template.get('subject', '')
+            body_text = body_text or selected_template.get('body', '')
+            category = category or selected_template.get('category', '')
+            priority = priority or selected_template.get('priority', 'normal')
+            raw_tags = ','.join(tags).strip()
+            if not raw_tags:
+                tags = (selected_template.get('tags', '') or '').split(',')
+
         if not subject or not requester_email:
             flash('Subject and requester email are required.', 'warning')
             category_options = _get_list_setting('ticket_categories', DEFAULT_TICKET_CATEGORIES)
             tag_options = _get_list_setting('ticket_tags', DEFAULT_TICKET_TAGS)
-            return render_template('tickets/create.html', category_options=category_options, tag_options=tag_options)
+            return render_template(
+                'tickets/create.html',
+                category_options=category_options,
+                tag_options=tag_options,
+                ticket_templates_enabled=templates_enabled,
+                ticket_templates=DEFAULT_TICKET_TEMPLATES,
+            )
 
         category_options = _get_list_setting('ticket_categories', DEFAULT_TICKET_CATEGORIES)
         tag_options = _get_list_setting('ticket_tags', DEFAULT_TICKET_TAGS)
@@ -454,7 +530,13 @@ def create():
 
     category_options = _get_list_setting('ticket_categories', DEFAULT_TICKET_CATEGORIES)
     tag_options = _get_list_setting('ticket_tags', DEFAULT_TICKET_TAGS)
-    return render_template('tickets/create.html', category_options=category_options, tag_options=tag_options)
+    return render_template(
+        'tickets/create.html',
+        category_options=category_options,
+        tag_options=tag_options,
+        ticket_templates_enabled=templates_enabled,
+        ticket_templates=DEFAULT_TICKET_TEMPLATES,
+    )
 
 
 @tickets_bp.route('/<int:ticket_id>')
@@ -480,7 +562,7 @@ def detail(ticket_id):
         category_options=category_options,
         tag_options=tag_options,
         priority_options=['low', 'normal', 'high'],
-        status_options=['open', 'triage', 'closed'],
+        status_options=TICKET_STATUS_OPTIONS,
     )
 
 
@@ -494,7 +576,26 @@ def update(ticket_id):
     previous_priority = ticket.priority
     previous_category = ticket.category
     previous_tags = ticket.tags
-    ticket.status = request.form.get('status', ticket.status).strip() or ticket.status
+    requested_status = (request.form.get('status', ticket.status) or '').strip().lower() or ticket.status
+    if requested_status not in TICKET_STATUS_OPTIONS:
+        flash('Invalid ticket status.', 'warning')
+        return redirect(url_for('tickets.detail', ticket_id=ticket.id))
+
+    previous_status_norm = (previous_status or '').lower()
+    is_reopen_transition = (
+        previous_status_norm in TICKET_REOPEN_SOURCE_STATUSES and
+        requested_status in TICKET_REOPEN_TARGET_STATUSES and
+        previous_status_norm != requested_status
+    )
+    if is_reopen_transition:
+        if not _ticket_reopen_agent_admin_enabled():
+            flash('Reopen from closed/resolved is disabled by Ticketing Settings.', 'warning')
+            return redirect(url_for('tickets.detail', ticket_id=ticket.id))
+        if current_user.role not in TICKET_AGENT_ADMIN_REOPEN_ROLES:
+            flash('Only agent/admin roles can reopen closed/resolved tickets.', 'danger')
+            return redirect(url_for('tickets.detail', ticket_id=ticket.id))
+
+    ticket.status = requested_status
     ticket.priority = request.form.get('priority', ticket.priority).strip() or ticket.priority
     category = request.form.get('category', '').strip()
     tags = request.form.get('tags', '').split(',')
@@ -532,7 +633,7 @@ def update(ticket_id):
             f'Ticket closed {ticket.ticket_code}',
             ticket.subject,
         )
-    if previous_status == 'closed' and ticket.status in ['open', 'triage']:
+    if is_reopen_transition:
         _create_ticket_notification(
             ticket,
             current_user.id,
@@ -576,6 +677,18 @@ def add_comment(ticket_id):
         body=body,
         is_internal=is_internal,
     )
+
+    previous_status = (ticket.status or '').lower()
+    auto_reopened = False
+    if (
+        not is_internal and
+        _ticket_reopen_requester_comment_enabled() and
+        previous_status in TICKET_REOPEN_SOURCE_STATUSES and
+        _is_requester_commenter(ticket)
+    ):
+        ticket.status = 'waiting'
+        auto_reopened = True
+
     ticket.last_message_at = datetime.utcnow()
     ticket.updated_at = datetime.utcnow()
     db.session.add(comment)
@@ -587,8 +700,26 @@ def add_comment(ticket_id):
         payload={
             'comment_id': comment.id,
             'is_internal': comment.is_internal,
+            'auto_reopened': auto_reopened,
         }
     )
+    if auto_reopened:
+        append_ledger_entry(
+            event_type='ticket_updated',
+            entity_type='ticket',
+            entity_id=ticket.id,
+            actor_id=current_user.id,
+            payload={
+                'status': {'from': previous_status, 'to': ticket.status},
+                'source': 'requester_comment_reopen',
+            }
+        )
+        _create_ticket_notification(
+            ticket,
+            current_user.id,
+            f'Ticket reopened {ticket.ticket_code}',
+            'Requester comment moved the ticket back to Waiting.',
+        )
     _create_ticket_notification(
         ticket,
         current_user.id,

@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Check Out Asset - School Inventory System{% endblock %}
+{% block title %}{{ checkout_mode_meta.title }} - School Inventory System{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
     <div class="col">
-        <h2><i class="bi bi-box-arrow-right"></i> Check Out Asset</h2>
+        <h2><i class="bi bi-box-arrow-right"></i> {{ checkout_mode_meta.title }}</h2>
+        <p class="text-muted mb-0">{{ checkout_mode_meta.description }}</p>
     </div>
     <div class="col text-end">
         <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
@@ -14,19 +15,37 @@
     </div>
 </div>
 
+<div class="row mb-4">
+    <div class="col-md-8 offset-md-2">
+        <div class="card border-0 bg-light">
+            <div class="card-body py-2">
+                <div class="d-flex flex-wrap gap-2 justify-content-center justify-content-md-start">
+                    {% for mode_key, mode_meta in checkout_mode_options %}
+                    <a href="{{ url_for('checkouts.checkout', mode=mode_key) }}"
+                       class="btn btn-sm {% if checkout_mode == mode_key %}btn-primary{% else %}btn-outline-primary{% endif %}">
+                        {{ mode_meta.title }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row">
     <div class="col-md-8 offset-md-2">
         <div class="card">
             <div class="card-body">
                 <form method="POST">
+                    <input type="hidden" name="checkout_mode" value="{{ checkout_mode }}">
                     <div class="mb-4">
-                        <label for="asset_id" class="form-label">Select Asset <span class="text-danger">*</span></label>
+                        <label for="asset_id" class="form-label">Select Item <span class="text-danger">*</span></label>
                         <div class="position-relative">
-                            <input type="text" class="form-control form-control-lg" id="asset_search_input" placeholder="Search assets by tag, name, or location" autocomplete="off">
+                            <input type="text" class="form-control form-control-lg" id="asset_search_input" placeholder="Search by tag, name, or location" autocomplete="off">
                             <div class="list-group position-absolute w-100 shadow d-none" id="asset_search_list" style="z-index: 10; max-height: 240px; overflow-y: auto;"></div>
                         </div>
                         <select class="form-select form-select-lg d-none" id="asset_id" name="asset_id" required>
-                            <option value="">-- Select an available asset --</option>
+                            <option value="">-- Select an available item --</option>
                             {% for asset in assets %}
                             <option value="{{ asset.id }}"
                                     {% if request.args.get('asset_id') == asset.id|string %}selected{% endif %}>
@@ -36,7 +55,7 @@
                         </select>
                         {% if not assets %}
                         <div class="alert alert-warning mt-2">
-                            No assets available for checkout. All assets are either checked out, in maintenance, or retired.
+                            No available items found for this workflow.
                         </div>
                         {% endif %}
                     </div>
@@ -56,19 +75,25 @@
                         </div>
                     </div>
 
+                    {% if checkout_mode_meta.show_expected_return %}
                     <div class="mb-3">
                         <label for="expected_return_date" class="form-label">Expected Return Date</label>
                         <input type="date" class="form-control" id="expected_return_date" name="expected_return_date">
                         <small class="form-text text-muted">Optional: When do you expect this asset to be returned?</small>
                     </div>
+                    {% else %}
+                    <div class="alert alert-light border">
+                        <i class="bi bi-info-circle"></i> This workflow does not use an expected return date.
+                    </div>
+                    {% endif %}
 
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> The asset status will automatically be updated to "Checked Out" and the checkout will be recorded in the history.
+                        <i class="bi bi-info-circle"></i> {{ checkout_mode_meta.description }}
                     </div>
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-success btn-lg" {% if not assets %}disabled{% endif %}>
-                            <i class="bi bi-check-circle"></i> Check Out Asset
+                            <i class="bi bi-check-circle"></i> {{ checkout_mode_meta.button_label }}
                         </button>
                     </div>
                 </form>
@@ -78,7 +103,7 @@
         <!-- Quick Reference -->
         <div class="card mt-4">
             <div class="card-header">
-                <h5 class="mb-0">Available Assets Summary</h5>
+                <h5 class="mb-0">Available Items Summary</h5>
             </div>
             <div class="card-body">
                 {% if assets %}
@@ -114,11 +139,11 @@
                         </tbody>
                     </table>
                     {% if assets|length > 10 %}
-                    <p class="text-muted mb-0">Showing first 10 of {{ assets|length }} available assets.</p>
+                    <p class="text-muted mb-0">Showing first 10 of {{ assets|length }} available items.</p>
                     {% endif %}
                 </div>
                 {% else %}
-                <p class="text-muted mb-0">No assets currently available.</p>
+                <p class="text-muted mb-0">No items currently available for this workflow.</p>
                 {% endif %}
             </div>
         </div>
@@ -141,6 +166,13 @@ const assetOptions = Array.from(assetSelect.options)
         value: option.value,
         label: option.textContent.trim()
     }));
+
+if (assetSelect.value) {
+    const selected = assetSelect.options[assetSelect.selectedIndex];
+    if (selected) {
+        assetSearchInput.value = selected.textContent.trim();
+    }
+}
 
 function setCreateLink(value) {
     const params = new URLSearchParams();

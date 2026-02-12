@@ -17,6 +17,18 @@
     <div class="card-body">
         <form method="POST" action="{{ url_for('tickets.create') }}">
             <div class="row g-3">
+                {% if ticket_templates_enabled %}
+                <div class="col-12">
+                    <label for="ticket_template_id" class="form-label">Ticket Template</label>
+                    <select class="form-select" id="ticket_template_id" name="ticket_template_id">
+                        <option value="">No template</option>
+                        {% for template in ticket_templates %}
+                        <option value="{{ template.id }}">{{ template.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="form-text">Selecting a template pre-fills subject, details, category, tags, and priority.</div>
+                </div>
+                {% endif %}
                 <div class="col-md-8">
                     <label for="subject" class="form-label">Subject</label>
                     <input type="text" class="form-control" id="subject" name="subject" required>
@@ -69,4 +81,35 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if ticket_templates_enabled %}
+<script>
+    const ticketTemplates = {{ ticket_templates|tojson }};
+    const ticketTemplateById = {};
+    for (const item of ticketTemplates) {
+        ticketTemplateById[item.id] = item;
+    }
+
+    const templateSelect = document.getElementById('ticket_template_id');
+    const subjectInput = document.getElementById('subject');
+    const bodyInput = document.getElementById('body_text');
+    const categoryInput = document.getElementById('category');
+    const tagsInput = document.getElementById('tags');
+    const prioritySelect = document.getElementById('priority');
+
+    if (templateSelect) {
+        templateSelect.addEventListener('change', function () {
+            const selected = ticketTemplateById[this.value];
+            if (!selected) return;
+            if (subjectInput) subjectInput.value = selected.subject || '';
+            if (bodyInput) bodyInput.value = selected.body || '';
+            if (categoryInput) categoryInput.value = selected.category || '';
+            if (tagsInput) tagsInput.value = selected.tags || '';
+            if (prioritySelect && selected.priority) prioritySelect.value = selected.priority;
+        });
+    }
+</script>
+{% endif %}
 {% endblock %}

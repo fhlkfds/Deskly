@@ -1,13 +1,103 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_required, current_user
 from auth import roles_required
-from models import db, Asset, Checkout, User, RepairTicket
+from models import db, Asset, Checkout, User, RepairTicket, Notification
 from datetime import datetime, timedelta
 import re
 from breakage import record_damage_incident
 from audit_ledger import append_ledger_entry
 
 checkouts_bp = Blueprint('checkouts', __name__, url_prefix='/checkouts')
+
+CHECKOUT_MODE_ORDER = ['assets', 'consumables', 'licenses', 'accessories']
+CHECKOUT_MODE_META = {
+    'assets': {
+        'title': 'Check Out Asset',
+        'button_label': 'Check Out Asset',
+        'description': 'Standard returnable device and infrastructure checkout.',
+        'show_expected_return': True,
+        'requires_existing_user': False,
+    },
+    'consumables': {
+        'title': 'Issue Consumable',
+        'button_label': 'Issue Consumable',
+        'description': 'Consumables are issued to people and do not get checked back in.',
+        'show_expected_return': False,
+        'requires_existing_user': True,
+    },
+    'licenses': {
+        'title': 'Assign License',
+        'button_label': 'Assign License',
+        'description': 'Assign software licenses directly to a known user.',
+        'show_expected_return': False,
+        'requires_existing_user': True,
+    },
+    'accessories': {
+        'title': 'Check Out Accessory',
+        'button_label': 'Check Out Accessory',
+        'description': 'Track accessories like mice, keyboards, and headsets.',
+        'show_expected_return': True,
+        'requires_existing_user': False,
+    },
+}
+
+
+def _normalize_checkout_mode(mode):
+    if mode in CHECKOUT_MODE_META:
+        return mode
+    return 'assets'
+
+
+def _match_user_by_identifier(identifier):
+    value = (identifier or '').strip()
+    if not value:
+        return None
+    if '@' in value:
+        return User.query.filter(db.func.lower(User.email) == value.lower()).first()
+    if re.match(r'^[A-Za-z0-9-]{3,}$', value):
+        by_tag = User.query.filter(db.func.lower(User.asset_tag) == value.lower()).first()
+        if by_tag:
+            return by_tag
+    return User.query.filter(db.func.lower(User.name) == value.lower()).first()
+
+
+def _assets_for_checkout_mode(assets, mode):
+    if mode == 'assets':
+        return [asset for asset in assets if asset.checkout_bucket == 'assets']
+    return [asset for asset in assets if asset.checkout_bucket == mode]
+
+
+def _redirect_checkout_mode(mode):
+    return redirect(url_for('checkouts.checkout', mode=mode))
+
+
+def _checkout_notification_title(mode):
+    if mode == 'consumables':
+        return 'Consumable issued'
+    if mode == 'licenses':
+        return 'License assigned'
+    if mode == 'accessories':
+        return 'Accessory checked out'
+    return 'Asset checked out'
+
+
+def _create_checkout_notifications(asset, mode, checked_out_to, actor_user, recipient_user=None):
+    title = _checkout_notification_title(mode)
+    actor_message = f'{asset.asset_tag} ({asset.name}) was checked out to {checked_out_to}.'
+    recipient_ids = {actor_user.id}
+    if recipient_user:
+        recipient_ids.add(recipient_user.id)
+
+    for user_id in recipient_ids:
+        if user_id == actor_user.id:
+            message = actor_message
+        else:
+            message = f'{asset.asset_tag} ({asset.name}) was checked out to you by {actor_user.name}.'
+        db.session.add(Notification(
+            user_id=user_id,
+            title=title,
+            message=message,
+        ))
 
 
 @checkouts_bp.route('/')
@@ -46,34 +136,56 @@ def history():
 @roles_required('admin', 'helpdesk')
 def checkout():
     """Checkout an asset."""
+    mode = _normalize_checkout_mode(request.args.get('mode', 'assets'))
+
+    requested_asset_id = request.args.get('asset_id', type=int)
+    if requested_asset_id and mode == 'assets':
+        requested_asset = Asset.query.get(requested_asset_id)
+        if requested_asset and requested_asset.checkout_bucket in CHECKOUT_MODE_META:
+            mode = requested_asset.checkout_bucket
+
     if request.method == 'POST':
+        mode = _normalize_checkout_mode(request.form.get('checkout_mode', mode))
+        mode_meta = CHECKOUT_MODE_META[mode]
         try:
             asset_id = request.form.get('asset_id')
             asset = Asset.query.get_or_404(asset_id)
 
+            if mode == 'assets' and asset.checkout_bucket != 'assets':
+                flash('Use the correct checkout workflow for this asset type.', 'danger')
+                return _redirect_checkout_mode(asset.checkout_bucket)
+            if mode != 'assets' and asset.checkout_bucket != mode:
+                flash('Selected asset does not belong to this checkout workflow.', 'danger')
+                return _redirect_checkout_mode(mode)
+
             # Check if asset is available
             if asset.status != 'available':
                 flash(f'Asset {asset.asset_tag} is not available for checkout.', 'danger')
-                return redirect(url_for('checkouts.checkout'))
+                return _redirect_checkout_mode(mode)
 
             checked_out_to = request.form.get('checked_out_to', '').strip()
             if not checked_out_to:
                 flash('Please enter who the asset is checked out to.', 'danger')
-                return redirect(url_for('checkouts.checkout'))
+                return _redirect_checkout_mode(mode)
 
-            matched_user = None
+            matched_user = _match_user_by_identifier(checked_out_to)
             if '@' in checked_out_to:
-                matched_user = User.query.filter(db.func.lower(User.email) == checked_out_to.lower()).first()
                 if not matched_user:
                     flash('No user found with that email. Create the user or enter a name instead.', 'warning')
-                    return redirect(url_for('checkouts.checkout'))
+                    return _redirect_checkout_mode(mode)
             else:
                 is_tag_like = re.match(r'^[A-Za-z0-9-]{3,}$', checked_out_to) is not None
                 if is_tag_like:
-                    matched_user = User.query.filter(db.func.lower(User.asset_tag) == checked_out_to.lower()).first()
                     if not matched_user:
                         flash('No user found with that asset tag. Create the user or enter a name instead.', 'warning')
-                        return redirect(url_for('checkouts.checkout'))
+                        return _redirect_checkout_mode(mode)
+                elif mode_meta['requires_existing_user'] and not matched_user:
+                    flash('Select an existing user by email, asset tag, or exact name for this checkout type.', 'danger')
+                    return _redirect_checkout_mode(mode)
+
+            if mode_meta['requires_existing_user'] and not matched_user:
+                flash('This checkout type requires assignment to an existing user.', 'danger')
+                return _redirect_checkout_mode(mode)
 
             if matched_user:
                 checked_out_to = matched_user.name
@@ -87,14 +199,22 @@ def checkout():
             )
 
             # Set expected return date if provided
-            if request.form.get('expected_return_date'):
+            if mode_meta['show_expected_return'] and request.form.get('expected_return_date'):
                 checkout_record.expected_return_date = datetime.strptime(
                     request.form['expected_return_date'], '%Y-%m-%d'
                 ).date()
 
             # Update asset status
-            asset.status = 'checked_out'
+            if mode == 'consumables':
+                checkout_record.checked_in_date = checkout_record.checkout_date
+                checkout_record.checkin_condition = 'consumed'
+                checkout_record.checkin_notes = 'Consumable issued (non-returnable).'
+                asset.status = 'retired'
+            else:
+                asset.status = 'checked_out'
             asset.updated_at = datetime.utcnow()
+            if mode == 'licenses' and matched_user:
+                asset.license_assigned_to = matched_user.email or matched_user.name
 
             db.session.add(checkout_record)
             db.session.flush()
@@ -108,21 +228,50 @@ def checkout():
                     'asset_tag': asset.asset_tag,
                     'checked_out_to': checkout_record.checked_out_to,
                     'expected_return_date': checkout_record.expected_return_date.isoformat() if checkout_record.expected_return_date else None,
+                    'checkout_mode': mode,
+                    'non_returnable': mode == 'consumables',
                 }
+            )
+            _create_checkout_notifications(
+                asset=asset,
+                mode=mode,
+                checked_out_to=checkout_record.checked_out_to,
+                actor_user=current_user,
+                recipient_user=matched_user,
             )
             db.session.commit()
 
-            flash(f'Asset {asset.asset_tag} checked out to {checkout_record.checked_out_to}!', 'success')
-            return redirect(url_for('assets.detail', asset_id=asset.id))
+            if mode == 'consumables':
+                flash(
+                    f'Consumable {asset.asset_tag} issued to {checkout_record.checked_out_to}. '
+                    'This item is non-returnable and has been marked as retired.',
+                    'success'
+                )
+            elif mode == 'licenses':
+                flash(f'License {asset.asset_tag} assigned to {checkout_record.checked_out_to}.', 'success')
+            elif mode == 'accessories':
+                flash(f'Accessory {asset.asset_tag} checked out to {checkout_record.checked_out_to}.', 'success')
+            else:
+                flash(f'Asset {asset.asset_tag} checked out to {checkout_record.checked_out_to}!', 'success')
+            return redirect(url_for('checkouts.checkout', mode=mode))
 
         except Exception as e:
             db.session.rollback()
             flash(f'Error checking out asset: {str(e)}', 'danger')
 
     # Get available assets for checkout
-    available_assets = Asset.query.filter_by(status='available').order_by(Asset.asset_tag).all()
+    available_assets = Asset.query.filter_by(status='available').order_by(Asset.type, Asset.asset_tag).all()
+    filtered_assets = _assets_for_checkout_mode(available_assets, mode)
+    mode_meta = CHECKOUT_MODE_META[mode]
+    mode_options = [(key, CHECKOUT_MODE_META[key]) for key in CHECKOUT_MODE_ORDER]
 
-    return render_template('checkouts/checkout.html', assets=available_assets)
+    return render_template(
+        'checkouts/checkout.html',
+        assets=filtered_assets,
+        checkout_mode=mode,
+        checkout_mode_meta=mode_meta,
+        checkout_mode_options=mode_options,
+    )
 
 
 @checkouts_bp.route('/checkin', methods=['GET', 'POST'])
@@ -134,6 +283,10 @@ def checkin():
         try:
             asset_id = request.form.get('asset_id')
             asset = Asset.query.get_or_404(asset_id)
+
+            if asset.is_consumable:
+                flash('Consumables are non-returnable and cannot be checked in.', 'warning')
+                return redirect(url_for('checkouts.checkin'))
 
             # Get active checkout
             active_checkout = asset.current_checkout
@@ -151,6 +304,8 @@ def checkin():
             asset.status = 'available'
             asset.condition = active_checkout.checkin_condition
             asset.updated_at = datetime.utcnow()
+            if asset.is_license:
+                asset.license_assigned_to = None
 
             if active_checkout.checkin_condition == 'needs_repair':
                 if not asset.current_repair:
@@ -191,6 +346,7 @@ def checkin():
 
     # Get checked out assets
     checked_out_assets = Asset.query.filter_by(status='checked_out').order_by(Asset.asset_tag).all()
+    checked_out_assets = [asset for asset in checked_out_assets if not asset.is_consumable]
 
     return render_template('checkouts/checkin.html', assets=checked_out_assets)
 
@@ -361,6 +517,9 @@ def fast_checkout():
             if asset.status not in ['available', 'maintenance']:
                 flash(f'Asset {asset.asset_tag} is already {asset.status}.', 'warning')
                 return redirect(url_for('checkouts.fast_checkout', step='asset'))
+            if asset.checkout_bucket != 'assets':
+                flash('Fast checkout is for returnable device assets only.', 'warning')
+                return redirect(url_for('checkouts.fast_checkout', step='asset'))
 
             try:
                 # Create checkout record
@@ -466,6 +625,9 @@ def fast_checkin():
             if not asset:
                 flash(f'Asset not found: {asset_identifier}', 'danger')
                 return redirect(url_for('checkouts.fast_checkin'))
+            if asset.is_consumable:
+                flash('Consumables are non-returnable and cannot be checked in.', 'warning')
+                return redirect(url_for('checkouts.fast_checkin'))
 
             # Get active checkout
             active_checkout = asset.current_checkout
@@ -495,6 +657,9 @@ def fast_checkin():
             if not asset:
                 flash('Asset not found.', 'danger')
                 return redirect(url_for('checkouts.fast_checkin'))
+            if asset.is_consumable:
+                flash('Consumables are non-returnable and cannot be checked in.', 'warning')
+                return redirect(url_for('checkouts.fast_checkin'))
 
             active_checkout = asset.current_checkout
             if not active_checkout:
@@ -515,6 +680,8 @@ def fast_checkin():
                 asset.status = 'available'
                 asset.condition = condition
                 asset.updated_at = datetime.utcnow()
+                if asset.is_license:
+                    asset.license_assigned_to = None
 
                 if condition == 'needs_repair':
                     if not asset.current_repair:
@@ -559,7 +726,7 @@ def fast_checkin():
                     'notes': notes
                 }
 
-                flash(f'✓ {asset.asset_tag} checked in successfully', 'success')
+                flash(f'✓ {asset.asset_tag} checked in from {active_checkout.checked_out_to}', 'success')
 
                 # Clear asset from session
                 session.pop('fast_checkin_asset', None)
@@ -603,10 +770,16 @@ def loaner_swap():
             if not active_checkout:
                 flash(f'Asset {broken_asset.asset_tag} is not currently checked out.', 'danger')
                 return redirect(url_for('checkouts.loaner_swap'))
+            if broken_asset.checkout_bucket != 'assets':
+                flash('Loaner swap is only available for returnable device assets.', 'danger')
+                return redirect(url_for('checkouts.loaner_swap'))
 
             # Validate loaner is available
             if loaner_asset.status != 'available':
                 flash(f'Loaner {loaner_asset.asset_tag} is not available.', 'danger')
+                return redirect(url_for('checkouts.loaner_swap'))
+            if loaner_asset.checkout_bucket != 'assets':
+                flash('Selected loaner is not a returnable device asset.', 'danger')
                 return redirect(url_for('checkouts.loaner_swap'))
 
             # Get form data
@@ -681,9 +854,11 @@ def loaner_swap():
     checked_out_assets = Asset.query.filter(
         Asset.status.in_(['checked_out', 'deployed'])
     ).order_by(Asset.asset_tag).all()
+    checked_out_assets = [asset for asset in checked_out_assets if asset.checkout_bucket == 'assets']
 
     # Get all available assets (potential loaners)
     available_assets = Asset.query.filter_by(status='available').order_by(Asset.type, Asset.asset_tag).all()
+    available_assets = [asset for asset in available_assets if asset.checkout_bucket == 'assets']
 
     return render_template('checkouts/loaner_swap.html',
                          checked_out_assets=checked_out_assets,

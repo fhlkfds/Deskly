@@ -60,8 +60,17 @@
                             {% endif %}
                             {% if current_user.role in ['admin', 'helpdesk'] %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout') }}">
-                                <i class="bi bi-box-arrow-right"></i> Check Out
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout', mode='assets') }}">
+                                <i class="bi bi-box-arrow-right"></i> Device Checkout
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout', mode='consumables') }}">
+                                <i class="bi bi-droplet-half"></i> Issue Consumable
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout', mode='licenses') }}">
+                                <i class="bi bi-key"></i> Assign License
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout', mode='accessories') }}">
+                                <i class="bi bi-mouse"></i> Accessory Checkout
                             </a></li>
                             <li><a class="dropdown-item" href="{{ url_for('checkouts.checkin') }}">
                                 <i class="bi bi-box-arrow-in-left"></i> Check In
@@ -80,6 +89,11 @@
                             <i class="bi bi-arrow-left-right"></i> Checkouts
                         </a>
                         <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout', mode='assets') }}">Device Checkout</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout', mode='consumables') }}">Issue Consumable</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout', mode='licenses') }}">Assign License</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('checkouts.checkout', mode='accessories') }}">Accessory Checkout</a></li>
+                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('checkouts.history') }}">History</a></li>
                         </ul>
                     </li>

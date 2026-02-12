@@ -132,6 +132,8 @@
 
                     <hr>
 
+                    {% if asset %}
+                    <h6 class="text-uppercase text-muted mb-3">License Details</h6>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="software_name" class="form-label">Software Name</label>
@@ -164,6 +166,7 @@
 
                     <hr>
 
+                    <h6 class="text-uppercase text-muted mb-3">Accessory Details</h6>
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="accessory_type" class="form-label">Accessory Type</label>
@@ -184,21 +187,22 @@
 
                     <hr>
 
+                    <h6 class="text-uppercase text-muted mb-3">Consumable Details</h6>
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="toner_model" class="form-label">Toner Model</label>
+                            <label for="toner_model" class="form-label">Consumable Name / Model</label>
                             <input type="text" class="form-control" id="toner_model" name="toner_model"
-                                   value="{{ asset.toner_model if asset else '' }}">
+                                   value="{{ asset.toner_model if asset else '' }}" placeholder="Paper A4, HP 410A Black Toner, etc.">
                         </div>
                         <div class="col-md-6">
-                            <label for="toner_compatible_printer" class="form-label">Compatible Printer</label>
+                            <label for="toner_compatible_printer" class="form-label">Compatible Device</label>
                             <input type="text" class="form-control" id="toner_compatible_printer" name="toner_compatible_printer"
                                    value="{{ asset.toner_compatible_printer if asset else '' }}">
                         </div>
                     </div>
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="toner_quantity" class="form-label">Toner Quantity</label>
+                            <label for="toner_quantity" class="form-label">Quantity On Hand</label>
                             <input type="number" class="form-control" id="toner_quantity" name="toner_quantity"
                                    min="0" value="{{ asset.toner_quantity if asset else '' }}">
                         </div>
@@ -208,6 +212,7 @@
                                    min="0" value="{{ asset.toner_reorder_threshold if asset else '' }}">
                         </div>
                     </div>
+                    {% endif %}
 
                     <div class="mb-3">
                         <label for="notes" class="form-label">Notes</label>

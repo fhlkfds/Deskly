@@ -112,7 +112,7 @@
                             <small class="text-muted">{{ ticket.requester_email }}</small>
                         </td>
                         <td>
-                            <span class="badge bg-{% if ticket.status == 'closed' %}secondary{% elif ticket.status == 'triage' %}warning{% else %}success{% endif %}">
+                            <span class="badge bg-{% if ticket.status == 'closed' %}secondary{% elif ticket.status == 'resolved' %}info{% elif ticket.status in ['triage', 'waiting'] %}warning{% elif ticket.status == 'new' %}primary{% else %}success{% endif %}">
                                 {{ ticket.status|title }}
                             </span>
                         </td>

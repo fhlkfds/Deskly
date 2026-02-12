@@ -116,6 +116,58 @@ class Asset(db.Model):
         """Get current active repair ticket if any."""
         return self.repairs.filter(RepairTicket.status != 'closed').first()
 
+    @staticmethod
+    def _normalized_value(value):
+        return (value or '').strip().lower()
+
+    @property
+    def normalized_category(self):
+        return self._normalized_value(self.category)
+
+    @property
+    def normalized_type(self):
+        return self._normalized_value(self.type)
+
+    @property
+    def is_consumable(self):
+        category = self.normalized_category
+        asset_type = self.normalized_type
+        return (
+            category in {'consumable', 'consumables'}
+            or asset_type in {'consumable', 'consumables', 'toner'}
+        )
+
+    @property
+    def is_license(self):
+        if self.is_consumable:
+            return False
+        category = self.normalized_category
+        asset_type = self.normalized_type
+        has_license_fields = any([
+            bool(self.license_key),
+            bool(self.license_assigned_to),
+            bool(self.license_expires_on),
+            self.license_seats is not None,
+        ])
+        return category in {'license', 'licenses'} or 'license' in asset_type or has_license_fields
+
+    @property
+    def is_accessory(self):
+        if self.is_consumable or self.is_license:
+            return False
+        category = self.normalized_category
+        return category in {'accessory', 'accessories'} or bool(self.accessory_type)
+
+    @property
+    def checkout_bucket(self):
+        if self.is_consumable:
+            return 'consumables'
+        if self.is_license:
+            return 'licenses'
+        if self.is_accessory:
+            return 'accessories'
+        return 'assets'
+
     def __repr__(self):
         return f'<Asset {self.asset_tag}: {self.name}>'
 
@@ -125,6 +177,8 @@ ASSET_CATEGORIES = [
     'Technology',
     'IT Infrastructure',
     'Accessories',
+    'Licenses',
+    'Consumables',
     'Other'
 ]
 
@@ -135,7 +189,7 @@ ASSET_TYPES = [
     'Keyboard',
     'Mouse',
     'Headphones',
-    'Toner',
+    'Consumable',
     'Software License',
     'Projector',
     'Printer',

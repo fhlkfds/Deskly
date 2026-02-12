@@ -16,6 +16,40 @@
     </div>
 </div>
 
+<!-- Quick Actions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <h5 class="card-title">Quick Actions</h5>
+                {% if current_user.role in ['admin', 'helpdesk'] %}
+                <a href="{{ url_for('checkouts.fast_checkout') }}" class="btn btn-warning btn-lg mx-2 mb-2">
+                    <i class="bi bi-lightning-charge"></i> Fast Checkout
+                </a>
+                <a href="{{ url_for('checkouts.fast_checkin') }}" class="btn btn-success btn-lg mx-2 mb-2">
+                    <i class="bi bi-box-arrow-in-left"></i> Fast Check-In
+                </a>
+                <a href="{{ url_for('checkouts.checkout', mode='assets') }}" class="btn btn-outline-primary btn-lg mx-2 mb-2">
+                    <i class="bi bi-laptop"></i> Device Checkout
+                </a>
+                <a href="{{ url_for('checkouts.checkout', mode='consumables') }}" class="btn btn-outline-primary btn-lg mx-2 mb-2">
+                    <i class="bi bi-droplet-half"></i> Issue Consumable
+                </a>
+                <a href="{{ url_for('checkouts.checkout', mode='licenses') }}" class="btn btn-outline-primary btn-lg mx-2 mb-2">
+                    <i class="bi bi-key"></i> Assign License
+                </a>
+                <a href="{{ url_for('checkouts.checkout', mode='accessories') }}" class="btn btn-outline-primary btn-lg mx-2 mb-2">
+                    <i class="bi bi-mouse"></i> Accessory Checkout
+                </a>
+                {% endif %}
+                <a href="{{ url_for('assets.list_assets') }}" class="btn btn-info btn-lg mx-2 mb-2">
+                    <i class="bi bi-search"></i> Browse Assets
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Global Search Box -->
 <div class="row mb-4">
     <div class="col-md-8 offset-md-2">
@@ -183,27 +217,6 @@
     </div>
 </div>
 
-<!-- Quick Actions -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body text-center">
-                <h5 class="card-title">Quick Actions</h5>
-                {% if current_user.role in ['admin', 'helpdesk'] %}
-                <a href="{{ url_for('checkouts.fast_checkout') }}" class="btn btn-warning btn-lg mx-2 mb-2">
-                    <i class="bi bi-lightning-charge"></i> Fast Checkout
-                </a>
-                <a href="{{ url_for('checkouts.fast_checkin') }}" class="btn btn-success btn-lg mx-2 mb-2">
-                    <i class="bi bi-box-arrow-in-left"></i> Fast Check-In
-                </a>
-                {% endif %}
-                <a href="{{ url_for('assets.list_assets') }}" class="btn btn-info btn-lg mx-2 mb-2">
-                    <i class="bi bi-search"></i> Browse Assets
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block extra_js %}

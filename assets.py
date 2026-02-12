@@ -24,17 +24,69 @@ def _get_setting_value(key, default=''):
     return setting.value
 
 
+def _normalize_asset_category(category):
+    value = (category or '').strip()
+    if not value:
+        return ''
+    normalized = value.lower()
+    if normalized in {'consumable', 'consumables', 'toner'}:
+        return 'Consumables'
+    if normalized in {'license', 'licenses'}:
+        return 'Licenses'
+    if normalized in {'accessory', 'accessories'}:
+        return 'Accessories'
+    return value
+
+
+def _normalize_asset_type(asset_type):
+    value = (asset_type or '').strip()
+    if not value:
+        return ''
+    normalized = value.lower()
+    if normalized in {'toner', 'consumable', 'consumables'}:
+        return 'Consumable'
+    if normalized in {'software license', 'software licenses', 'license', 'licenses'}:
+        return 'Software License'
+    return value
+
+
+def _normalize_asset_option_list(values, normalizer):
+    cleaned = []
+    seen = set()
+    for value in values:
+        normalized_value = normalizer(value)
+        if not normalized_value:
+            continue
+        dedupe_key = normalized_value.lower()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        cleaned.append(normalized_value)
+    return cleaned
+
+
 def _get_list_setting(key, fallback_list):
+    defaults = list(fallback_list)
+    if key == 'asset_types':
+        defaults = _normalize_asset_option_list(defaults, _normalize_asset_type)
+    elif key == 'asset_categories':
+        defaults = _normalize_asset_option_list(defaults, _normalize_asset_category)
+
     raw = _get_setting_value(key, '')
     if not raw:
-        return list(fallback_list)
+        return defaults
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
-        return list(fallback_list)
+        return defaults
     if isinstance(parsed, list):
-        return [str(item).strip() for item in parsed if str(item).strip()]
-    return list(fallback_list)
+        cleaned = [str(item).strip() for item in parsed if str(item).strip()]
+        if key == 'asset_types':
+            return _normalize_asset_option_list(cleaned, _normalize_asset_type)
+        if key == 'asset_categories':
+            return _normalize_asset_option_list(cleaned, _normalize_asset_category)
+        return cleaned
+    return defaults
 
 
 def _asset_tag_settings():
@@ -121,15 +173,24 @@ def list_assets():
 def detail(asset_id):
     """View asset details and history."""
     asset = Asset.query.get_or_404(asset_id)
-    checkouts = asset.checkouts.all()
-    device_user_logs = GoogleAdminDeviceUserLog.query.filter_by(asset_id=asset.id).order_by(
-        GoogleAdminDeviceUserLog.observed_at.desc()
-    ).limit(10).all()
+    device_history_enabled = _get_setting_value('asset_device_history_enabled', 'true') == 'true'
+
+    checkouts = []
+    repairs = []
+    device_user_logs = []
+    if device_history_enabled:
+        checkouts = asset.checkouts.all()
+        repairs = asset.repairs.all()
+        device_user_logs = GoogleAdminDeviceUserLog.query.filter_by(asset_id=asset.id).order_by(
+            GoogleAdminDeviceUserLog.observed_at.desc()
+        ).limit(50).all()
 
     return render_template('assets/detail.html',
                          asset=asset,
                          checkouts=checkouts,
-                         device_user_logs=device_user_logs)
+                         repairs=repairs,
+                         device_user_logs=device_user_logs,
+                         device_history_enabled=device_history_enabled)
 
 
 @assets_bp.route('/new', methods=['GET', 'POST'])
@@ -166,11 +227,14 @@ def create():
                 if not asset_tag_input or asset_tag_input == generated_tag:
                     asset_tag = generated_tag
                     used_number = generated_number
+
+            asset_category = _normalize_asset_category(request.form['category'])
+            asset_type = _normalize_asset_type(request.form['type'])
             asset = Asset(
                 asset_tag=asset_tag,
                 name=request.form['name'],
-                category=request.form['category'],
-                type=request.form['type'],
+                category=asset_category,
+                type=asset_type,
                 serial_number=request.form.get('serial_number', ''),
                 status=request.form.get('status', 'available'),
                 location=request.form.get('location', ''),
@@ -274,8 +338,8 @@ def edit(asset_id):
 
             asset.asset_tag = request.form['asset_tag']
             asset.name = request.form['name']
-            asset.category = request.form['category']
-            asset.type = request.form['type']
+            asset.category = _normalize_asset_category(request.form['category'])
+            asset.type = _normalize_asset_type(request.form['type'])
             asset.serial_number = request.form.get('serial_number', '')
             asset.status = request.form.get('status', 'available')
             asset.location = request.form.get('location', '')
@@ -419,6 +483,12 @@ def repair_assets():
             if not active_checkout:
                 flash('Broken asset is not currently checked out.', 'danger')
                 return redirect(url_for('assets.repair_assets'))
+            if broken_asset.checkout_bucket != 'assets':
+                flash('Repair workflow is only available for returnable device assets.', 'danger')
+                return redirect(url_for('assets.repair_assets'))
+            if replacement_asset.checkout_bucket != 'assets':
+                flash('Replacement asset must be a returnable device asset.', 'danger')
+                return redirect(url_for('assets.repair_assets'))
 
             if replacement_asset.status != 'available':
                 flash('Replacement asset is not available.', 'danger')
@@ -482,6 +552,8 @@ def repair_assets():
 
     checked_out_assets = checked_out_query.order_by(Asset.asset_tag).all()
     available_assets = Asset.query.filter_by(status='available').order_by(Asset.type, Asset.asset_tag).all()
+    checked_out_assets = [asset for asset in checked_out_assets if asset.checkout_bucket == 'assets']
+    available_assets = [asset for asset in available_assets if asset.checkout_bucket == 'assets']
     open_repairs = RepairTicket.query.filter(RepairTicket.status != 'closed').order_by(RepairTicket.updated_at.desc()).all()
 
     return render_template('assets/repair.html',
@@ -526,11 +598,13 @@ def import_assets():
         created = 0
         skipped = 0
         errors = []
+        valid_categories = _get_list_setting('asset_categories', ASSET_CATEGORIES)
+        valid_types = _get_list_setting('asset_types', ASSET_TYPES)
 
         for idx, row in enumerate(reader, start=2):
             asset_tag = get_value(row, 'asset_tag')
-            category = get_value(row, 'category')
-            asset_type = get_value(row, 'type')
+            category = _normalize_asset_category(get_value(row, 'category'))
+            asset_type = _normalize_asset_type(get_value(row, 'type'))
             serial_number = get_value(row, 'serial_number') or None
             status = get_value(row, 'status') or 'available'
             condition = get_value(row, 'condition') or 'good'
@@ -538,10 +612,10 @@ def import_assets():
             if not asset_tag or not category or not asset_type or not serial_number or not status or not condition:
                 errors.append(f'Row {idx}: asset_tag, category, type, serial_number, status, and condition are required.')
                 continue
-            if category not in ASSET_CATEGORIES:
+            if category not in valid_categories:
                 errors.append(f'Row {idx}: invalid category \"{category}\".')
                 continue
-            if asset_type not in ASSET_TYPES:
+            if asset_type not in valid_types:
                 errors.append(f'Row {idx}: invalid type \"{asset_type}\".')
                 continue
             if status not in ASSET_STATUSES:

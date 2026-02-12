@@ -15,10 +15,24 @@
         {% endif %}
         {% if current_user.role in ['admin', 'helpdesk'] %}
         {% if asset.status == 'available' %}
-        <a href="{{ url_for('checkouts.checkout') }}?asset_id={{ asset.id }}" class="btn btn-success">
+        {% if asset.is_consumable %}
+        <a href="{{ url_for('checkouts.checkout', mode='consumables', asset_id=asset.id) }}" class="btn btn-success">
+            <i class="bi bi-box-arrow-right"></i> Issue Consumable
+        </a>
+        {% elif asset.is_license %}
+        <a href="{{ url_for('checkouts.checkout', mode='licenses', asset_id=asset.id) }}" class="btn btn-success">
+            <i class="bi bi-key"></i> Assign License
+        </a>
+        {% elif asset.is_accessory %}
+        <a href="{{ url_for('checkouts.checkout', mode='accessories', asset_id=asset.id) }}" class="btn btn-success">
+            <i class="bi bi-mouse"></i> Check Out Accessory
+        </a>
+        {% else %}
+        <a href="{{ url_for('checkouts.checkout', mode='assets', asset_id=asset.id) }}" class="btn btn-success">
             <i class="bi bi-box-arrow-right"></i> Check Out
         </a>
-        {% elif asset.status == 'checked_out' or asset.status == 'deployed' %}
+        {% endif %}
+        {% elif (asset.status == 'checked_out' or asset.status == 'deployed') and not asset.is_consumable %}
         <a href="{{ url_for('checkouts.checkin') }}?asset_id={{ asset.id }}" class="btn btn-warning">
             <i class="bi bi-box-arrow-in-left"></i> Check In
         </a>
@@ -189,15 +203,15 @@
                 {% if asset.toner_model or asset.toner_compatible_printer or asset.toner_quantity is not none or asset.toner_reorder_threshold is not none %}
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <strong>Toner Model:</strong><br>
+                        <strong>Consumable Name / Model:</strong><br>
                         {{ asset.toner_model or '-' }}
                     </div>
                     <div class="col-md-6">
-                        <strong>Compatible Printer:</strong><br>
+                        <strong>Compatible Device:</strong><br>
                         {{ asset.toner_compatible_printer or '-' }}
                     </div>
                     <div class="col-md-6 mt-2">
-                        <strong>Quantity:</strong><br>
+                        <strong>Quantity On Hand:</strong><br>
                         {{ asset.toner_quantity if asset.toner_quantity is not none else '-' }}
                     </div>
                     <div class="col-md-6 mt-2">
@@ -246,48 +260,7 @@
                     {% endif %}
                 </p>
                 {% endif %}
-                <p><strong>Checked out by:</strong><br>{{ asset.current_checkout.user.name }}</p>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Google Admin Device User Info -->
-        {% if asset.google_admin_last_user_email or device_user_logs %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">Google Admin Device Users</h5>
-            </div>
-            <div class="card-body">
-                {% if asset.google_admin_last_user_email %}
-                <p class="mb-2">
-                    <strong>Last seen user:</strong><br>
-                    {{ asset.google_admin_last_user_email }}
-                </p>
-                {% if asset.google_admin_last_user_seen_at %}
-                <p class="mb-2">
-                    <strong>Last sync time:</strong><br>
-                    {{ asset.google_admin_last_user_seen_at.strftime('%Y-%m-%d %H:%M') }}
-                </p>
-                {% endif %}
-                {% else %}
-                <p class="text-muted mb-2">No user data synced yet.</p>
-                {% endif %}
-
-                {% if device_user_logs %}
-                <div class="mt-3">
-                    <strong>Recent log entries:</strong>
-                    <ul class="list-unstyled mb-0">
-                        {% for log in device_user_logs %}
-                        <li>
-                            <small>
-                                {{ log.observed_at.strftime('%Y-%m-%d %H:%M') }} —
-                                {{ log.user_email or 'Unknown user' }}
-                            </small>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
+                <p><strong>Checked out by:</strong><br>{{ asset.current_checkout.checked_out_by_user.name if asset.current_checkout.checked_out_by_user else 'Unknown' }}</p>
             </div>
         </div>
         {% endif %}
@@ -312,12 +285,48 @@
     </div>
 </div>
 
-<!-- Checkout History -->
+<!-- Device History -->
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0">Checkout History</h5>
+        <h5 class="mb-0">Device History</h5>
     </div>
     <div class="card-body">
+        {% if device_history_enabled %}
+        <h6 class="mb-3">Google Admin Login History</h6>
+        {% if asset.google_admin_last_user_email %}
+        <p class="mb-2">
+            <strong>Last seen user:</strong> {{ asset.google_admin_last_user_email }}
+            {% if asset.google_admin_last_user_seen_at %}
+            <span class="text-muted">({{ asset.google_admin_last_user_seen_at.strftime('%Y-%m-%d %H:%M') }})</span>
+            {% endif %}
+        </p>
+        {% endif %}
+        {% if device_user_logs %}
+        <div class="table-responsive mb-4">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Observed</th>
+                        <th>User Email</th>
+                        <th>Device Serial</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in device_user_logs %}
+                    <tr>
+                        <td>{{ log.observed_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ log.user_email or '-' }}</td>
+                        <td><code>{{ log.device_serial or '-' }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-4">No Google Admin login history available for this device.</p>
+        {% endif %}
+
+        <h6 class="mb-3">Checkout History</h6>
         {% if checkouts %}
         <div class="table-responsive">
             <table class="table table-sm">
@@ -358,7 +367,36 @@
             </table>
         </div>
         {% else %}
-        <p class="text-muted">No checkout history for this asset.</p>
+        <p class="text-muted mb-4">No checkout history for this asset.</p>
+        {% endif %}
+
+        <h6 class="mb-3">Repair History</h6>
+        {% if repairs %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Updated</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for repair in repairs %}
+                    <tr>
+                        <td><span class="badge bg-secondary">{{ repair.status.replace('_', ' ')|title }}</span></td>
+                        <td>{{ repair.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ repair.notes or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">No repair history for this asset.</p>
+        {% endif %}
+        {% else %}
+        <p class="text-muted mb-0">Device history is disabled in Asset Settings.</p>
         {% endif %}
     </div>
 </div>

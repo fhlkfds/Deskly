@@ -27,6 +27,20 @@
     </div>
 </div>
 
+{% if current_user.role in ['admin', 'helpdesk'] %}
+<div class="card mb-4 border-0 bg-light">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="text-muted small me-1">Quick checkout workflows:</span>
+            <a href="{{ url_for('checkouts.checkout', mode='assets') }}" class="btn btn-sm btn-outline-primary">Devices</a>
+            <a href="{{ url_for('checkouts.checkout', mode='consumables') }}" class="btn btn-sm btn-outline-primary">Consumables</a>
+            <a href="{{ url_for('checkouts.checkout', mode='licenses') }}" class="btn btn-sm btn-outline-primary">Licenses</a>
+            <a href="{{ url_for('checkouts.checkout', mode='accessories') }}" class="btn btn-sm btn-outline-primary">Accessories</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Filters -->
 <div class="card mb-4">
     <div class="card-body">

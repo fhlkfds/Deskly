@@ -140,7 +140,7 @@
                 <form method="POST" action="{{ url_for('settings.manual_google_admin_sync') }}">
                     <div class="form-check text-start mb-2">
                         <input class="form-check-input" type="checkbox" id="sync_device_ou" name="sync_device_ou">
-                        <label class="form-check-label small" for="sync_device_ou">Include Device OU sync</label>
+                        <label class="form-check-label small" for="sync_device_ou">Sync Device OU to local assets</label>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">
                         <i class="bi bi-arrow-repeat"></i> Run Manual Sync
@@ -292,7 +292,7 @@
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="ga_sync_device_ou" name="ga_sync_device_ou"
                            {% if google_admin_schedule.sync_device_ou %}checked{% endif %}>
-                    <label class="form-check-label" for="ga_sync_device_ou">Also sync Device OU to local assets</label>
+                    <label class="form-check-label" for="ga_sync_device_ou">Sync Device OU to local assets</label>
                 </div>
             </div>
             <div class="col-md-8">

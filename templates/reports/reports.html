@@ -43,6 +43,20 @@
                         </select>
                     </div>
 
+                    <div class="row g-3 mb-3" id="premade_date_range_group">
+                        <div class="col-md-6">
+                            <label for="premade_start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="premade_start_date" name="start_date">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="premade_end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="premade_end_date" name="end_date">
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted">Optional date filter for all premade reports.</small>
+                        </div>
+                    </div>
+
                     <div class="mb-3 d-none" id="email_group">
                         <label for="email_to" class="form-label">Email Address</label>
                         <input type="email" class="form-control" id="email_to" name="email_to" placeholder="name@school.edu">
@@ -245,5 +259,6 @@
 
     toggleEmailGroup('delivery_method', 'email_group', 'email_to');
     toggleEmailGroup('delivery_method_custom', 'email_group_custom', 'email_to_custom');
+
 </script>
 {% endblock %}

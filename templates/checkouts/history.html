@@ -77,6 +77,8 @@
                             <span class="badge bg-success">Good</span>
                             {% elif checkout.checkin_condition == 'fair' %}
                             <span class="badge bg-warning text-dark">Fair</span>
+                            {% elif checkout.checkin_condition == 'consumed' %}
+                            <span class="badge bg-secondary">Consumed</span>
                             {% else %}
                             <span class="badge bg-danger">Needs Repair</span>
                             {% endif %}

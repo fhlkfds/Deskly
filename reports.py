@@ -40,6 +40,7 @@ PREMADE_REPORTS = [
     ('checked_out_assets', 'Currently Checked Out Assets'),
     ('repair_pipeline', 'Repair Pipeline'),
     ('user_role_summary', 'User Role Summary'),
+    ('ticketing_report', 'Ticketing Report'),
 ]
 ESCALATION_STATUSES = [
     ('open', 'Open'),
@@ -73,10 +74,10 @@ ASSET_REPORT_FIELDS = [
     ('accessory_type', 'Accessory Type'),
     ('accessory_compatibility', 'Accessory Compatibility'),
     ('accessory_notes', 'Accessory Notes'),
-    ('toner_model', 'Toner Model'),
-    ('toner_compatible_printer', 'Toner Compatible Printer'),
-    ('toner_quantity', 'Toner Quantity'),
-    ('toner_reorder_threshold', 'Toner Reorder Threshold'),
+    ('toner_model', 'Consumable Name / Model'),
+    ('toner_compatible_printer', 'Consumable Compatible Device'),
+    ('toner_quantity', 'Consumable Quantity'),
+    ('toner_reorder_threshold', 'Consumable Reorder Threshold'),
     ('google_sheets_row_id', 'Google Sheets Row ID'),
     ('created_at', 'Created At'),
     ('updated_at', 'Updated At'),
@@ -84,9 +85,42 @@ ASSET_REPORT_FIELDS = [
 ASSET_FIELD_LABELS = dict(ASSET_REPORT_FIELDS)
 
 
+def _parse_date_range(form_data):
+    start_date_raw = form_data.get('start_date', '').strip()
+    end_date_raw = form_data.get('end_date', '').strip()
+
+    start_dt = None
+    end_dt = None
+    if start_date_raw:
+        start_date = datetime.strptime(start_date_raw, '%Y-%m-%d').date()
+        start_dt = datetime.combine(start_date, datetime.min.time())
+    if end_date_raw:
+        end_date = datetime.strptime(end_date_raw, '%Y-%m-%d').date()
+        end_dt = datetime.combine(end_date, datetime.max.time())
+    if start_dt and end_dt and start_dt > end_dt:
+        raise ValueError('Start date cannot be later than end date.')
+
+    return start_dt, end_dt
+
+
+def _apply_datetime_range(query, column, start_dt, end_dt):
+    if start_dt:
+        query = query.filter(column >= start_dt)
+    if end_dt:
+        query = query.filter(column <= end_dt)
+    return query
+
+
 def _build_report(report_type, form_data):
+    start_dt, end_dt = _parse_date_range(form_data)
+
     if report_type == 'asset_status_summary':
-        rows = db.session.query(Asset.status, db.func.count(Asset.id)).group_by(Asset.status).all()
+        rows = _apply_datetime_range(
+            db.session.query(Asset.status, db.func.count(Asset.id)),
+            Asset.created_at,
+            start_dt,
+            end_dt
+        ).group_by(Asset.status).all()
         return {
             'title': 'Asset Status Summary',
             'columns': ['Status', 'Count'],
@@ -94,7 +128,8 @@ def _build_report(report_type, form_data):
         }
 
     if report_type == 'checked_out_assets':
-        rows = db.session.query(
+        rows = _apply_datetime_range(
+            db.session.query(
             Asset.asset_tag,
             Asset.name,
             Checkout.checked_out_to,
@@ -103,6 +138,10 @@ def _build_report(report_type, form_data):
             Asset.status
         ).join(Checkout, Checkout.asset_id == Asset.id).filter(
             Checkout.checked_in_date.is_(None)
+            ),
+            Checkout.checkout_date,
+            start_dt,
+            end_dt
         ).order_by(Checkout.checkout_date.desc()).all()
         return {
             'title': 'Currently Checked Out Assets',
@@ -118,7 +157,8 @@ def _build_report(report_type, form_data):
         }
 
     if report_type == 'repair_pipeline':
-        rows = db.session.query(
+        rows = _apply_datetime_range(
+            db.session.query(
             Asset.asset_tag,
             Asset.name,
             RepairTicket.status,
@@ -126,6 +166,10 @@ def _build_report(report_type, form_data):
             RepairTicket.notes
         ).join(RepairTicket, RepairTicket.asset_id == Asset.id).filter(
             RepairTicket.status != 'closed'
+            ),
+            RepairTicket.updated_at,
+            start_dt,
+            end_dt
         ).order_by(RepairTicket.updated_at.desc()).all()
         return {
             'title': 'Repair Pipeline',
@@ -140,11 +184,49 @@ def _build_report(report_type, form_data):
         }
 
     if report_type == 'user_role_summary':
-        rows = db.session.query(User.role, db.func.count(User.id)).group_by(User.role).all()
+        rows = _apply_datetime_range(
+            db.session.query(User.role, db.func.count(User.id)),
+            User.created_at,
+            start_dt,
+            end_dt
+        ).group_by(User.role).all()
         return {
             'title': 'User Role Summary',
             'columns': ['Role', 'Count'],
             'rows': [[role, count] for role, count in rows],
+        }
+
+    if report_type == 'ticketing_report':
+        rows = _apply_datetime_range(
+            Ticket.query,
+            Ticket.created_at,
+            start_dt,
+            end_dt
+        ).outerjoin(User, Ticket.assigned_to_id == User.id).order_by(Ticket.created_at.desc()).all()
+        return {
+            'title': 'Ticketing Report',
+            'columns': [
+                'Ticket Code',
+                'Subject',
+                'Requester',
+                'Status',
+                'Priority',
+                'Category',
+                'Assignee',
+                'Created At',
+                'Updated At',
+            ],
+            'rows': [[
+                ticket.ticket_code or f'T-{ticket.id:04d}',
+                ticket.subject,
+                ticket.requester_email,
+                ticket.status,
+                ticket.priority,
+                ticket.category or '',
+                ticket.assignee.name if ticket.assignee else '',
+                ticket.created_at.strftime('%Y-%m-%d %H:%M') if ticket.created_at else '',
+                ticket.updated_at.strftime('%Y-%m-%d %H:%M') if ticket.updated_at else '',
+            ] for ticket in rows],
         }
 
     if report_type == 'custom_asset_fields':

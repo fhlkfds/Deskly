@@ -23,6 +23,14 @@
                     Enable auto-increment asset tags
                 </label>
             </div>
+            <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="asset_device_history_enabled" name="asset_device_history_enabled"
+                       {% if asset_device_history_enabled %}checked{% endif %}>
+                <label class="form-check-label" for="asset_device_history_enabled">
+                    Enable device history on asset detail pages
+                </label>
+                <div class="form-text">Shows Google Admin login history, checkout history, and repair history on each device page.</div>
+            </div>
             <div class="row g-3 mb-3">
                 <div class="col-md-4">
                     <label for="asset_tag_prefix" class="form-label">Prefix</label>

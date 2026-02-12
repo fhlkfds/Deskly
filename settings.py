@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify, current_app
-from flask_login import login_required
+from flask_login import login_required, current_user
 from auth import admin_required
 from models import (
     db,
@@ -64,13 +64,59 @@ def _demo_counts():
     return demo_assets, demo_users
 
 
-def _asset_category_for_type(asset_type):
-    if asset_type in ['Laptop', 'Tablet', 'Projector', 'Smart Board']:
-        return 'Technology'
-    if asset_type in ['Server', 'VM', 'Docker Container', 'Printer']:
-        return 'IT Infrastructure'
-    if asset_type == 'Charger':
+def _normalize_asset_category(category):
+    value = (category or '').strip()
+    if not value:
+        return ''
+    normalized = value.lower()
+    if normalized in {'consumable', 'consumables', 'toner'}:
+        return 'Consumables'
+    if normalized in {'license', 'licenses'}:
+        return 'Licenses'
+    if normalized in {'accessory', 'accessories'}:
         return 'Accessories'
+    return value
+
+
+def _normalize_asset_type(asset_type):
+    value = (asset_type or '').strip()
+    if not value:
+        return ''
+    normalized = value.lower()
+    if normalized in {'toner', 'consumable', 'consumables'}:
+        return 'Consumable'
+    if normalized in {'software license', 'software licenses', 'license', 'licenses'}:
+        return 'Software License'
+    return value
+
+
+def _normalize_asset_option_list(values, normalizer):
+    cleaned = []
+    seen = set()
+    for value in values:
+        normalized_value = normalizer(value)
+        if not normalized_value:
+            continue
+        dedupe_key = normalized_value.lower()
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        cleaned.append(normalized_value)
+    return cleaned
+
+
+def _asset_category_for_type(asset_type):
+    normalized_type = _normalize_asset_type(asset_type)
+    if normalized_type in ['Laptop', 'Tablet', 'Projector', 'Smart Board']:
+        return 'Technology'
+    if normalized_type in ['Server', 'VM', 'Docker Container', 'Printer']:
+        return 'IT Infrastructure'
+    if normalized_type in ['Charger', 'Keyboard', 'Mouse', 'Headphones']:
+        return 'Accessories'
+    if normalized_type == 'Software License':
+        return 'Licenses'
+    if normalized_type == 'Consumable':
+        return 'Consumables'
     return 'Other'
 
 
@@ -130,20 +176,35 @@ def _set_setting(key, value):
 
 
 def _get_list_setting(key, default_list):
+    defaults = list(default_list)
+    if key == 'asset_types':
+        defaults = _normalize_asset_option_list(defaults, _normalize_asset_type)
+    elif key == 'asset_categories':
+        defaults = _normalize_asset_option_list(defaults, _normalize_asset_category)
+
     raw = _get_setting(key, '')
     if not raw:
-        return list(default_list)
+        return defaults
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
-        return list(default_list)
+        return defaults
     if isinstance(parsed, list):
-        return [str(item).strip() for item in parsed if str(item).strip()]
-    return list(default_list)
+        cleaned = [str(item).strip() for item in parsed if str(item).strip()]
+        if key == 'asset_types':
+            return _normalize_asset_option_list(cleaned, _normalize_asset_type)
+        if key == 'asset_categories':
+            return _normalize_asset_option_list(cleaned, _normalize_asset_category)
+        return cleaned
+    return defaults
 
 
 def _set_list_setting(key, values):
     cleaned = [value.strip() for value in values if value.strip()]
+    if key == 'asset_types':
+        cleaned = _normalize_asset_option_list(cleaned, _normalize_asset_type)
+    elif key == 'asset_categories':
+        cleaned = _normalize_asset_option_list(cleaned, _normalize_asset_category)
     _set_setting(key, json.dumps(cleaned))
 
 
@@ -528,10 +589,14 @@ def _settings_context():
         'asset_statuses_text': _list_to_text(asset_statuses),
         'asset_conditions_text': _list_to_text(asset_conditions),
         'asset_locations_text': _list_to_text(asset_locations),
+        'asset_device_history_enabled': _get_setting('asset_device_history_enabled', 'true') == 'true',
         'sso_google_enabled': _get_setting('sso_google_enabled', 'false') == 'true',
         'sso_microsoft_enabled': _get_setting('sso_microsoft_enabled', 'false') == 'true',
         'ticket_visibility_roles': ticket_visibility_roles,
         'ticketing_gmail_enabled': _get_setting('ticketing_gmail_enabled', 'false') == 'true',
+        'ticket_templates_enabled': _get_setting('ticket_templates_enabled', 'false') == 'true',
+        'ticket_reopen_agent_admin_enabled': _get_setting('ticket_reopen_agent_admin_enabled', 'true') == 'true',
+        'ticket_reopen_requester_comment_enabled': _get_setting('ticket_reopen_requester_comment_enabled', 'false') == 'true',
     }
 
 
@@ -743,10 +808,10 @@ def ticketing_settings():
 @login_required
 @admin_required
 def update_ticketing_settings():
-    roles = request.form.getlist('ticket_visibility_roles')
-    ticketing_gmail_enabled = request.form.get('ticketing_gmail_enabled') == 'on'
+    updated_any = False
 
-    if 'ticket_visibility_roles' in request.form:
+    if request.form.get('ticketing_visibility_submit') == '1' or 'ticket_visibility_roles' in request.form:
+        roles = request.form.getlist('ticket_visibility_roles')
         previous_roles = _get_list_setting('ticket_visibility_roles', ['admin', 'helpdesk', 'staff'])
         _set_list_setting('ticket_visibility_roles', roles)
         from audit_ledger import append_ledger_entry
@@ -757,9 +822,30 @@ def update_ticketing_settings():
             actor_id=current_user.id,
             payload={'from': previous_roles, 'to': roles},
         )
-    _set_setting('ticketing_gmail_enabled', 'true' if ticketing_gmail_enabled else 'false')
-    db.session.commit()
-    flash('Ticketing settings saved.', 'success')
+        updated_any = True
+
+    if request.form.get('ticketing_gmail_submit') == '1' or 'ticketing_gmail_enabled' in request.form:
+        ticketing_gmail_enabled = request.form.get('ticketing_gmail_enabled') == 'on'
+        _set_setting('ticketing_gmail_enabled', 'true' if ticketing_gmail_enabled else 'false')
+        updated_any = True
+
+    if request.form.get('ticketing_templates_submit') == '1' or 'ticket_templates_enabled' in request.form:
+        ticket_templates_enabled = request.form.get('ticket_templates_enabled') == 'on'
+        _set_setting('ticket_templates_enabled', 'true' if ticket_templates_enabled else 'false')
+        updated_any = True
+
+    if request.form.get('ticketing_reopen_submit') == '1' or 'ticket_reopen_agent_admin_enabled' in request.form or 'ticket_reopen_requester_comment_enabled' in request.form:
+        reopen_agent_admin_enabled = request.form.get('ticket_reopen_agent_admin_enabled') == 'on'
+        reopen_requester_comment_enabled = request.form.get('ticket_reopen_requester_comment_enabled') == 'on'
+        _set_setting('ticket_reopen_agent_admin_enabled', 'true' if reopen_agent_admin_enabled else 'false')
+        _set_setting('ticket_reopen_requester_comment_enabled', 'true' if reopen_requester_comment_enabled else 'false')
+        updated_any = True
+
+    if updated_any:
+        db.session.commit()
+        flash('Ticketing settings saved.', 'success')
+    else:
+        flash('No ticketing settings were submitted.', 'info')
     return redirect(url_for('settings.ticketing_settings'))
 
 
@@ -964,6 +1050,7 @@ def update_asset_settings():
     """Update asset configuration lists and auto-increment settings."""
     try:
         auto_increment = request.form.get('asset_tag_auto_increment') == 'on'
+        device_history_enabled = request.form.get('asset_device_history_enabled') == 'on'
         prefix = request.form.get('asset_tag_prefix', '').strip()
         next_number = request.form.get('asset_tag_next_number', '').strip()
         padding = request.form.get('asset_tag_padding', '').strip()
@@ -975,6 +1062,7 @@ def update_asset_settings():
         asset_locations = request.form.get('asset_locations_text', '').splitlines()
 
         _set_setting('asset_tag_auto_increment', 'true' if auto_increment else 'false')
+        _set_setting('asset_device_history_enabled', 'true' if device_history_enabled else 'false')
         _set_setting('asset_tag_prefix', prefix or 'AST-')
         _set_setting('asset_tag_next_number', next_number or '1')
         _set_setting('asset_tag_padding', padding or '4')
